@@ -15,9 +15,14 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
+
 #define __TLS __declspec(thread)
+
 #else
-#define __TLS __thread
+
+#include <threads.h>
+#define __TLS thread_local
+
 #endif
 
 #ifdef __cplusplus
