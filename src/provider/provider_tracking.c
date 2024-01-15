@@ -160,7 +160,25 @@ static umf_result_t trackingInitialize(void *params, void **ret) {
     return UMF_RESULT_SUCCESS;
 }
 
-static void trackingFinalize(void *provider) { free(provider); }
+static void trackingFinalize(void *provider) {
+    umf_tracking_memory_provider_t *p =
+        (umf_tracking_memory_provider_t *)provider;
+
+    {
+        // find, remove and free all values left in the critnib tree
+        uintptr_t rkey;
+        void *rvalue;
+        uintptr_t last_key = 0;
+        while (1 == critnib_find((critnib *)p->hTracker, last_key, FIND_G,
+                                 &rkey, &rvalue)) {
+            void *value = critnib_remove((critnib *)p->hTracker, rkey);
+            free(value);
+            last_key = rkey;
+        }
+    }
+
+    free(provider);
+}
 
 static void trackingGetLastError(void *provider, const char **msg,
                                  int32_t *pError) {

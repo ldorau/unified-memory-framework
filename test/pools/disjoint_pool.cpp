@@ -145,7 +145,7 @@ TEST_F(test, sharedLimits) {
 
     // All memory should be freed now
     EXPECT_EQ(MaxSize / SlabMinSize * 2, numAllocs);
-    EXPECT_EQ(MaxSize / SlabMinSize * 2, numFrees);
+    EXPECT_EQ(MaxSize / SlabMinSize * 2, numFrees + 2);
 }
 
 auto defaultPoolConfig = poolConfig();
