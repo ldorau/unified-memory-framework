@@ -6,7 +6,9 @@
 */
 
 #include <assert.h>
+#include <errno.h>
 #include <numaif.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
@@ -107,7 +109,16 @@ static int os_translate_purge_advise(umf_purge_advise_t advise) {
 
 long os_mbind(void *addr, size_t len, int mode, const unsigned long *nodemask,
               unsigned long maxnode, unsigned flags) {
-    return mbind(addr, len, mode, nodemask, maxnode, flags);
+    errno = 0;
+    long ret = mbind(addr, len, mode, nodemask, maxnode, flags);
+    if (ret) {
+        perror("mbind() failed with: ");
+    }
+    fprintf(stderr,
+            "DEBUG >>> mbind(addr=%p, len=%zu, mode=%i, *nodemask=%lu, "
+            "maxnode=%lu, flags=%u) = %li\n",
+            addr, len, mode, nodemask ? *nodemask : 0, maxnode, flags, ret);
+    return ret;
 }
 
 long os_get_mempolicy(int *mode, unsigned long *nodemask, unsigned long maxnode,
