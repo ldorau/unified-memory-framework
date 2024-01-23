@@ -20,6 +20,16 @@ extern "C" {
 #define __TLS __thread
 #endif
 
+static inline size_t align_size(size_t size, size_t alignment) {
+    // align size to 'alignment' bytes
+    size_t rest = size & (alignment - 1);
+    if (rest) {
+        return (size - rest + alignment);
+    } else {
+        return size;
+    }
+}
+
 #ifdef __cplusplus
 }
 #endif
