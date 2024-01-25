@@ -34,7 +34,6 @@ struct umf_ba_chunk_t {
 struct umf_ba_main_pool_meta_t {
     size_t pool_size; // size of each pool (argument of each ba_os_alloc() call)
     size_t chunk_size;         // size of all memory chunks in this pool
-    os_mutex_t *free_lock;     // lock of free_list
     umf_ba_chunk_t *free_list; // list of free chunks
 #ifndef NDEBUG
     size_t n_allocated;
@@ -63,7 +62,6 @@ struct umf_ba_next_pool_t {
 // ba_divide_memory_into_chunks - divide given memory into chunks of chunk_size and add them to the free_list
 static void ba_divide_memory_into_chunks(umf_ba_pool_t *pool, void *ptr,
                                          size_t size) {
-    assert(pool->metadata.free_list == NULL);
     assert(size > pool->metadata.chunk_size);
 
     char *data_ptr = ptr;
@@ -81,17 +79,22 @@ static void ba_divide_memory_into_chunks(umf_ba_pool_t *pool, void *ptr,
         prev_chunk = current_chunk;
     }
 
-    current_chunk->next = NULL;
-    pool->metadata.free_list = ptr; // address of the first chunk
+    // attach old free_list (may be NULL) at the of the new free list
+    umf_ba_chunk_t *old_free_list;
+    do {
+        old_free_list = pool->metadata.free_list;
+        current_chunk->next = old_free_list;
+        // ptr is the address of the first chunk
+    } while (!__sync_bool_compare_and_swap(&pool->metadata.free_list,
+                                           old_free_list, ptr));
 }
 
 umf_ba_pool_t *umf_ba_create(size_t size) {
     size_t chunk_size = align_size(size, MEMORY_ALIGNMENT);
-    size_t mutex_size = align_size(util_mutex_get_size(), MEMORY_ALIGNMENT);
 
     size_t metadata_size = sizeof(struct umf_ba_main_pool_meta_t);
-    size_t pool_size = sizeof(void *) + metadata_size + mutex_size +
-                       (MINIMUM_CHUNK_COUNT * chunk_size);
+    size_t pool_size =
+        sizeof(void *) + metadata_size + (MINIMUM_CHUNK_COUNT * chunk_size);
     if (pool_size < MINIMUM_POOL_SIZE) {
         pool_size = MINIMUM_POOL_SIZE;
     }
@@ -113,49 +116,51 @@ umf_ba_pool_t *umf_ba_create(size_t size) {
     char *data_ptr = (char *)&pool->data;
     size_t size_left = pool_size - offsetof(umf_ba_pool_t, data);
 
-    // allocate and init free_lock
-    pool->metadata.free_lock = util_mutex_init(data_ptr);
-    if (!pool->metadata.free_lock) {
-        ba_os_free(pool, pool_size);
-        return NULL;
-    }
-
-    data_ptr += mutex_size;  // free_lock is here
-    size_left -= mutex_size; // for free_lock
-
     pool->metadata.free_list = NULL;
     ba_divide_memory_into_chunks(pool, data_ptr, size_left);
 
     return pool;
 }
 
-void *umf_ba_alloc(umf_ba_pool_t *pool) {
-    util_mutex_lock(pool->metadata.free_lock);
-    if (pool->metadata.free_list == NULL) {
-        umf_ba_next_pool_t *new_pool =
-            (umf_ba_next_pool_t *)ba_os_alloc(pool->metadata.pool_size);
-        if (!new_pool) {
-            util_mutex_unlock(pool->metadata.free_lock);
-            return NULL;
-        }
-
-        // add the new pool to the list of pools
-        new_pool->next_pool = pool->next_pool;
-        pool->next_pool = new_pool;
-
-        size_t size =
-            pool->metadata.pool_size - offsetof(umf_ba_next_pool_t, data);
-        ba_divide_memory_into_chunks(pool, &new_pool->data, size);
+static void *ba_add_next_pool(umf_ba_pool_t *pool) {
+    umf_ba_next_pool_t *new_pool =
+        (umf_ba_next_pool_t *)ba_os_alloc(pool->metadata.pool_size);
+    if (!new_pool) {
+        return NULL;
     }
 
-    umf_ba_chunk_t *chunk = pool->metadata.free_list;
-    pool->metadata.free_list = pool->metadata.free_list->next;
-#ifndef NDEBUG
-    pool->metadata.n_allocated++;
-#endif /* NDEBUG */
-    util_mutex_unlock(pool->metadata.free_lock);
+    // add the new pool to the list of pools
+    new_pool->next_pool = pool->next_pool;
+    pool->next_pool = new_pool;
 
-    return chunk;
+    size_t size = pool->metadata.pool_size - offsetof(umf_ba_next_pool_t, data);
+    ba_divide_memory_into_chunks(pool, &new_pool->data, size);
+
+    return pool;
+}
+
+void *umf_ba_alloc(umf_ba_pool_t *pool) {
+    umf_ba_chunk_t *old_free_list;
+    umf_ba_chunk_t *new_free_list;
+
+    do {
+        old_free_list = pool->metadata.free_list;
+        if (old_free_list == NULL) {
+            if (ba_add_next_pool(pool) == NULL) {
+                return NULL;
+            }
+            old_free_list = pool->metadata.free_list;
+        }
+        assert(old_free_list != NULL);
+        new_free_list = old_free_list->next;
+    } while (!__sync_bool_compare_and_swap(&pool->metadata.free_list,
+                                           old_free_list, new_free_list));
+
+#ifndef NDEBUG
+    __sync_fetch_and_add(&pool->metadata.n_allocated, 1);
+#endif /* NDEBUG */
+
+    return old_free_list;
 }
 
 void umf_ba_free(umf_ba_pool_t *pool, void *ptr) {
@@ -164,14 +169,16 @@ void umf_ba_free(umf_ba_pool_t *pool, void *ptr) {
     }
 
     umf_ba_chunk_t *chunk = (umf_ba_chunk_t *)ptr;
+    umf_ba_chunk_t *old_free_list;
+    do {
+        old_free_list = pool->metadata.free_list;
+        chunk->next = old_free_list;
+    } while (!__sync_bool_compare_and_swap(&pool->metadata.free_list,
+                                           old_free_list, chunk));
 
-    util_mutex_lock(pool->metadata.free_lock);
-    chunk->next = pool->metadata.free_list;
-    pool->metadata.free_list = chunk;
 #ifndef NDEBUG
-    pool->metadata.n_allocated--;
+    __sync_fetch_and_sub(&pool->metadata.n_allocated, 1);
 #endif /* NDEBUG */
-    util_mutex_unlock(pool->metadata.free_lock);
 }
 
 void umf_ba_destroy(umf_ba_pool_t *pool) {
@@ -187,6 +194,5 @@ void umf_ba_destroy(umf_ba_pool_t *pool) {
         ba_os_free(current_pool, size);
     }
 
-    util_mutex_destroy_not_free(pool->metadata.free_lock);
     ba_os_free(pool, size);
 }
