@@ -8,6 +8,7 @@
  */
 
 #include "provider_tracking.h"
+#include "base_alloc.h"
 #include "critnib.h"
 #include "utils_concurrency.h"
 
@@ -27,10 +28,11 @@ typedef struct tracker_value_t {
 
 static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
                                         umf_memory_pool_handle_t pool,
-                                        const void *ptr, size_t size) {
+                                        umf_ba_pool_t *ba_pool, const void *ptr,
+                                        size_t size) {
     assert(ptr);
 
-    tracker_value_t *value = (tracker_value_t *)malloc(sizeof(tracker_value_t));
+    tracker_value_t *value = (tracker_value_t *)umf_ba_alloc(ba_pool);
     value->pool = pool;
     value->size = size;
 
@@ -40,7 +42,7 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
         return UMF_RESULT_SUCCESS;
     }
 
-    free(value);
+    umf_ba_free(ba_pool, value);
 
     if (ret == ENOMEM) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -52,6 +54,7 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
 }
 
 static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
+                                           umf_ba_pool_t *ba_pool,
                                            const void *ptr, size_t size) {
     assert(ptr);
 
@@ -68,7 +71,7 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
         return UMF_RESULT_ERROR_UNKNOWN;
     }
 
-    free(value);
+    umf_ba_free(ba_pool, value);
 
     return UMF_RESULT_SUCCESS;
 }
@@ -92,6 +95,7 @@ typedef struct umf_tracking_memory_provider_t {
     umf_memory_provider_handle_t hUpstream;
     umf_memory_tracker_handle_t hTracker;
     umf_memory_pool_handle_t pool;
+    umf_ba_pool_t *ba_pool;
 } umf_tracking_memory_provider_t;
 
 typedef struct umf_tracking_memory_provider_t umf_tracking_memory_provider_t;
@@ -111,7 +115,8 @@ static umf_result_t trackingAlloc(void *hProvider, size_t size,
         return ret;
     }
 
-    umf_result_t ret2 = umfMemoryTrackerAdd(p->hTracker, p->pool, *ptr, size);
+    umf_result_t ret2 =
+        umfMemoryTrackerAdd(p->hTracker, p->pool, p->ba_pool, *ptr, size);
     if (ret2 != UMF_RESULT_SUCCESS) {
         // DO NOT call umfMemoryProviderFree() here, because the tracking provider
         // cannot change behaviour of the upstream provider.
@@ -129,7 +134,7 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
         (umf_tracking_memory_provider_t *)hProvider;
 
     tracker_value_t *splitValue =
-        (tracker_value_t *)malloc(sizeof(tracker_value_t));
+        (tracker_value_t *)umf_ba_alloc(provider->ba_pool);
     if (!splitValue) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -168,8 +173,8 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
 
     // We'll have a duplicate entry for the range [highPtr, highValue->size] but this is fine,
     // the value is the same anyway and we forbid removing that range concurrently
-    ret = umfMemoryTrackerAdd(provider->hTracker, provider->pool, highPtr,
-                              secondSize);
+    ret = umfMemoryTrackerAdd(provider->hTracker, provider->pool,
+                              provider->ba_pool, highPtr, secondSize);
     if (ret != UMF_RESULT_SUCCESS) {
         fprintf(stderr, "tracking split: umfMemoryTrackerAdd failed\n");
         // TODO: what now? should we rollback the split? This can only happen due to ENOMEM
@@ -185,7 +190,7 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
     (void)cret;
 
     // free the original value
-    free(value);
+    umf_ba_free(provider->ba_pool, value);
     util_mutex_unlock(provider->hTracker->splitMergeMutex);
 
     return UMF_RESULT_SUCCESS;
@@ -193,7 +198,7 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
 err:
     util_mutex_unlock(provider->hTracker->splitMergeMutex);
 err_lock:
-    free(splitValue);
+    umf_ba_free(provider->ba_pool, splitValue);
     return ret;
 }
 
@@ -204,7 +209,8 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
         (umf_tracking_memory_provider_t *)hProvider;
 
     tracker_value_t *mergedValue =
-        (tracker_value_t *)malloc(sizeof(tracker_value_t));
+        (tracker_value_t *)umf_ba_alloc(provider->ba_pool);
+    ;
     if (!mergedValue) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -260,13 +266,13 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
     (void)cret;
 
     // free old value that we just replaced with mergedValue
-    free(lowValue);
+    umf_ba_free(provider->ba_pool, lowValue);
 
     void *erasedhighValue =
         critnib_remove(provider->hTracker->map, (uintptr_t)highPtr);
     assert(erasedhighValue == highValue);
 
-    free(erasedhighValue);
+    umf_ba_free(provider->ba_pool, erasedhighValue);
 
     util_mutex_unlock(provider->hTracker->splitMergeMutex);
 
@@ -275,7 +281,7 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
 err:
     util_mutex_unlock(provider->hTracker->splitMergeMutex);
 err_lock:
-    free(mergedValue);
+    umf_ba_free(provider->ba_pool, mergedValue);
     return ret;
 }
 
@@ -289,7 +295,7 @@ static umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
     // could allocate the memory at address `ptr` before a call to umfMemoryTrackerRemove
     // resulting in inconsistent state.
     if (ptr) {
-        ret = umfMemoryTrackerRemove(p->hTracker, ptr, size);
+        ret = umfMemoryTrackerRemove(p->hTracker, p->ba_pool, ptr, size);
         if (ret != UMF_RESULT_SUCCESS) {
             // DO NOT return an error here, because the tracking provider
             // cannot change behaviour of the upstream provider.
@@ -299,7 +305,7 @@ static umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
 
     ret = umfMemoryProviderFree(p->hUpstream, ptr, size);
     if (ret != UMF_RESULT_SUCCESS) {
-        if (umfMemoryTrackerAdd(p->hTracker, p->pool, ptr, size) !=
+        if (umfMemoryTrackerAdd(p->hTracker, p->pool, p->ba_pool, ptr, size) !=
             UMF_RESULT_SUCCESS) {
             // TODO: LOG
         }
@@ -318,6 +324,8 @@ static umf_result_t trackingInitialize(void *params, void **ret) {
     }
 
     *provider = *((umf_tracking_memory_provider_t *)params);
+    provider->ba_pool = umf_ba_create(sizeof(tracker_value_t));
+
     *ret = provider;
     return UMF_RESULT_SUCCESS;
 }
@@ -358,12 +366,14 @@ static void check_if_tracker_is_empty(umf_memory_tracker_handle_t hTracker,
 #endif /* NDEBUG */
 
 static void trackingFinalize(void *provider) {
-#ifndef NDEBUG
     umf_tracking_memory_provider_t *p =
         (umf_tracking_memory_provider_t *)provider;
+
+#ifndef NDEBUG
     check_if_tracker_is_empty(p->hTracker, p->pool);
 #endif /* NDEBUG */
 
+    umf_ba_destroy(p->ba_pool);
     free(provider);
 }
 
