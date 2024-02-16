@@ -103,3 +103,12 @@ install(TARGETS umf
 )
 
 add_subdirectory(pool)
+
+# TODO: enable proxy_lib on Windows
+if(LINUX)
+    if(UMF_BUILD_LIBUMF_POOL_JEMALLOC)
+        add_subdirectory(proxy_lib)
+    else()
+        message(STATUS "The proxy library is disabled, because UMF_BUILD_LIBUMF_POOL_JEMALLOC is OFF")
+    endif()
+endif()
