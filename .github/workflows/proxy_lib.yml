@@ -1,6 +1,6 @@
 name: Proxy library
 
-on: workflow_call
+on: [push, pull_request]
 
 permissions:
   contents: read
@@ -45,9 +45,18 @@ jobs:
       - name: Build UMF
         run: cmake --build ${{github.workspace}}/build -j $(nproc)
 
-      - name: Run benchmarks
+      - name: Run "/usr/bin/date" with proxy library
         working-directory: ${{github.workspace}}/build
-        run: |
-          LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
-          LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
-          LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
+        run: LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
+
+      - name: Run "/usr/bin/ls" with proxy library
+        working-directory: ${{github.workspace}}/build
+        run: LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
+
+      - name: Run "./test/umf_test-memoryPool" with proxy library
+        working-directory: ${{github.workspace}}/build
+        run: LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
+
+      - name: Run "ctest --output-on-failure" with proxy library
+        working-directory: ${{github.workspace}}/build
+        run: LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
