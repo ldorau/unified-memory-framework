@@ -13,6 +13,8 @@ permissions:
 jobs:
   FastBuild:
     name: Fast build
+    env:
+      PKG_CONFIG_PATH: "C:\\vcpkg\\packages\\hwloc_x64-windows\\lib\\pkgconfig"
     strategy:
       matrix:
         include:
@@ -50,6 +52,18 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+    - if: matrix.os == 'windows-latest'
+      name: Cache hwloc vcpkg package
+      uses: actions/cache@v4
+      id: cache-hwloc-package
+      with:
+        path: C:/vcpkg/packages/hwloc_x64-windows
+        key:  vcpkg-packages-1
+
+    - if: ${{ matrix.os == 'windows-latest' }} && ${{ steps.cache-hwloc-package.outputs.cache-hit != 'true' }}
+      name: Install vcpkg packages
+      run: vcpkg install hwloc
 
     - name: Install apt packages
       if: matrix.os == 'ubuntu-latest'
