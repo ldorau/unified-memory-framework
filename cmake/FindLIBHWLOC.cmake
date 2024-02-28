@@ -7,6 +7,10 @@ message(STATUS "Checking for module 'libhwloc' using find_library()")
 find_library(LIBHWLOC_LIBRARY NAMES libhwloc hwloc)
 set(LIBHWLOC_LIBRARIES ${LIBHWLOC_LIBRARY})
 
+find_file(LIBHWLOC_HEADER NAMES hwloc.h HINTS /usr/include/ ${CMAKE_PREFIX_PATH}/include)
+get_filename_component(LIBHWLOC_INCLUDE_DIR ${LIBHWLOC_HEADER} DIRECTORY)
+set(LIBHWLOC_INCLUDE_DIRS ${LIBHWLOC_INCLUDE_DIR})
+
 if(LIBHWLOC_LIBRARY)
 	message(STATUS "  Found libhwloc using find_library()")
 else()

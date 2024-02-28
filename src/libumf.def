@@ -39,3 +39,4 @@ EXPORTS
     umfPoolMallocUsableSize
     umfPoolRealloc
     umfProxyPoolOps
+    umfOsMemoryProviderOps
