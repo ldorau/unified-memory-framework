@@ -45,7 +45,6 @@ bool isReallocSupported(umf_memory_pool_handle_t hPool) {
     static constexpr size_t allocSize = 8;
     bool supported = false;
     auto *ptr = umfPoolMalloc(hPool, allocSize);
-    memset(ptr, 0, allocSize);
     auto *new_ptr = umfPoolRealloc(hPool, ptr, allocSize * 2);
 
     if (new_ptr) {
