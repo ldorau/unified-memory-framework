@@ -84,6 +84,12 @@ elseif(MACOSX)
 endif()
 
 if(UMF_BUILD_SHARED_LIBRARY)
+    if(WINDOWS AND (NOT UMF_BUILD_OS_MEMORY_PROVIDER))
+        # UMF_BUILD_SHARED_LIBRARY=ON requires UMF_BUILD_OS_MEMORY_PROVIDER=ON on Windows
+        # because libumf.def contains the umfOsMemoryProviderOps symbol
+        # that is unresolved on Windows if UMF_BUILD_OS_MEMORY_PROVIDER=OFF
+        message(FATAL_ERROR "UMF_BUILD_SHARED_LIBRARY=ON requires UMF_BUILD_OS_MEMORY_PROVIDER=ON on Windows")
+    endif()
     add_umf_library(NAME umf
                     TYPE SHARED
                     SRCS ${UMF_SOURCES}

@@ -197,12 +197,6 @@ jobs:
             pool_tracking: 'ON'
             shared_library: 'ON'
             os_provider: 'ON'
-          - os: 'windows-2022'
-            build_type: Release
-            compiler: {c: cl, cxx: cl}
-            pool_tracking: 'ON'
-            shared_library: 'ON'
-            os_provider: 'OFF'
 
     runs-on: ${{matrix.os}}
 
