@@ -109,7 +109,7 @@ jobs:
   windows-build:
     name: cl and clang-cl on Windows
     env:
-      HWLOC_PATH: "C:\\vcpkg\\packages\\hwloc_x64-windows\\"
+      HWLOC_PATH: "${{github.workspace}}/build/vcpkg/packages/hwloc_x64-windows"
     strategy:
       matrix:
         compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
@@ -133,16 +133,20 @@ jobs:
         arch: x64
         toolset: 14.38.33130
 
-    - name: Cache hwloc vcpkg package
-      uses: actions/cache@v4
-      id: cache-hwloc-package
+    - uses: lukka/get-cmake@latest
       with:
-        path: ${{ env.HWLOC_PATH }}
-        key:  vcpkg-packages-1
+        cmakeVersion: 3.22.6
 
-    - if: ${{ steps.cache-hwloc-package.outputs.cache-hit != 'true' }}
-      name: Install vcpkg packages
-      run: vcpkg install hwloc
+    - name: Initialize vcpkg
+      uses: lukka/run-vcpkg@v11.5
+      with:
+        vcpkgGitCommitId: 3dd44b931481d7a8e9ba412621fa810232b66289
+        vcpkgDirectory: ${{ github.workspace }}/build/vcpkg
+        vcpkgConfigurationJsonGlob: '**/vcpkg-configuration.json'
+
+    - name: Install dependencies
+      run: vcpkg install
+      shell: pwsh # Specifies PowerShell as the shell for running the script.
 
     - name: Configure build
       run: >

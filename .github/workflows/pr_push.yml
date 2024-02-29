@@ -14,7 +14,7 @@ jobs:
   FastBuild:
     name: Fast build
     env:
-      HWLOC_PATH: "C:\\vcpkg\\packages\\hwloc_x64-windows\\"
+      HWLOC_PATH: "${{github.workspace}}/build/vcpkg/packages/hwloc_x64-windows"
     strategy:
       matrix:
         include:
@@ -50,16 +50,22 @@ jobs:
       uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
 
     - if: ${{ matrix.os == 'windows-latest' }}
-      name: Cache hwloc vcpkg package
-      uses: actions/cache@v4
-      id: cache-hwloc-package
+      uses: lukka/get-cmake@latest
       with:
-        path: ${{ env.HWLOC_PATH }}
-        key:  vcpkg-packages-1
+        cmakeVersion: 3.22.6
 
-    - if: ${{ matrix.os == 'windows-latest' }} && ${{ steps.cache-hwloc-package.outputs.cache-hit != 'true' }}
-      name: Install vcpkg packages
-      run: vcpkg install hwloc
+    - if: ${{ matrix.os == 'windows-latest' }}
+      name: Initialize vcpkg
+      uses: lukka/run-vcpkg@v11.5
+      with:
+        vcpkgGitCommitId: 3dd44b931481d7a8e9ba412621fa810232b66289
+        vcpkgDirectory: ${{ github.workspace }}/build/vcpkg
+        vcpkgConfigurationJsonGlob: '**/vcpkg-configuration.json'
+
+    - if: ${{ matrix.os == 'windows-latest' }}
+      name: Install dependencies
+      run: vcpkg install
+      shell: pwsh # Specifies PowerShell as the shell for running the script.
 
     - name: Install apt packages
       if: matrix.os == 'ubuntu-latest'
