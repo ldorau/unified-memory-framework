@@ -19,12 +19,12 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            pool_scalable: 'OFF'
+            pool_scalable: 'ON'
             disjoint: 'OFF'
             jemalloc: 'OFF'
           # pure C build (Windows)
           - os: windows-latest
-            pool_scalable: 'OFF'
+            pool_scalable: 'ON'
             disjoint: 'OFF'
             jemalloc: 'OFF'
             # Tests' building is off for a pure C build
