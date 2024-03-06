@@ -6,6 +6,7 @@
 #include "memspace_helpers.hpp"
 #include "memspace_internal.h"
 #include "test_helpers.h"
+#include "utils_common.h"
 
 #include <numa.h>
 #include <numaif.h>
@@ -137,7 +138,9 @@ TEST_F(memspaceHostAllProviderTest, memoryPolicyOOM) {
         // 'BIND' mode specifies that the memory is bound to a set of NUMA nodes.
         // In case of 'HOST ALL' memspace, those set of nodes should be all
         // available nodes.
-        UT_ASSERTeq(mode, MPOL_BIND);
+        if (!is_running_under_valgrind()) {
+            UT_ASSERTeq(mode, MPOL_BIND);
+        }
 
         // Confirm that the memory is bound to all the nodes from 'HOST ALL'
         // memspace.

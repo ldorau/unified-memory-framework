@@ -41,6 +41,7 @@ function(add_umf_test)
         ${UMF_CMAKE_SOURCE_DIR}/include
         ${UMF_CMAKE_SOURCE_DIR}/src
         ${UMF_CMAKE_SOURCE_DIR}/src/base_alloc
+        ${UMF_CMAKE_SOURCE_DIR}/src/utils
         ${UMF_TEST_DIR}/common
         ${UMF_TEST_DIR})
 
@@ -135,7 +136,7 @@ if(UMF_BUILD_OS_MEMORY_PROVIDER AND LINUX) # OS-specific functions are implement
                  LIBS umf_utils ${LIBNUMA_LIBRARIES})
     add_umf_test(NAME memspace_host_all
                  SRCS memspaces/memspace_host_all.cpp
-                 LIBS ${LIBNUMA_LIBRARIES})
+                 LIBS ${LIBNUMA_LIBRARIES} umf_utils)
 endif()
 
 # TODO add support for Windows

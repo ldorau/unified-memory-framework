@@ -59,6 +59,12 @@ static inline int is_running_in_proxy_lib(void) {
     return util_env_var_has_str("LD_PRELOAD", "libumf_proxy.so");
 }
 
+// check if we are running under Valgrind
+static inline int is_running_under_valgrind(void) {
+    return util_env_var_has_str("LD_PRELOAD", "/valgrind/") ||
+           util_env_var_has_str("LD_PRELOAD", "/vgpreload");
+}
+
 size_t util_get_page_size(void);
 
 #define NOFUNCTION                                                             \
@@ -122,7 +128,9 @@ static inline void align_ptr_size(void **ptr, size_t *size, size_t alignment) {
     *size = s;
 }
 
+#ifndef ALIGN_UP
 #define ALIGN_UP(value, align) (((value) + (align)-1) & ~((align)-1))
+#endif
 #define ALIGN_DOWN(value, align) ((value) & ~((align)-1))
 
 #ifdef __cplusplus
