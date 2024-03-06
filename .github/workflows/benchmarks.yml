@@ -1,7 +1,8 @@
 # Executes benchmarks implemented in this repository
 name: Benchmarks
 
-on: workflow_call
+# on: workflow_call
+on: [push, pull_request]
 
 permissions:
   contents: read
