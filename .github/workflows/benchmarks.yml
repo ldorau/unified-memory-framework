@@ -1,7 +1,7 @@
 # Executes benchmarks implemented in this repository
 name: Benchmarks
 
-on: workflow_call
+on: [push, pull_request]
 
 permissions:
   contents: read
@@ -115,18 +115,12 @@ jobs:
         -DUMF_BUILD_OS_MEMORY_PROVIDER=ON
         -DUMF_BUILD_LIBUMF_POOL_DISJOINT=ON
         -DUMF_BUILD_LIBUMF_POOL_JEMALLOC=OFF
-        -DUMF_BUILD_LIBUMF_POOL_SCALABLE=OFF
+        -DUMF_BUILD_LIBUMF_POOL_SCALABLE=ON
         -DUMF_ENABLE_POOL_TRACKING=OFF
 
     - name: Build UMF
       run: cmake --build ${{env.BUILD_DIR}} --config ${{matrix.build_type}} -j $Env:NUMBER_OF_PROCESSORS
 
     - name: Run benchmarks
-      working-directory: ${{env.BUILD_DIR}}
-      shell: pwsh # Specifies PowerShell as the shell for running the script.
-      run: |
-        # add path to umf.dll
-        $env:PATH += ";${{env.BUILD_DIR}}\bin\${{matrix.build_type}}"
-        # add path to DLL directories
-        $env:PATH += ";${{env.VCPKG_PATH_BIN}}"
-        .\benchmark\${{matrix.build_type}}\ubench.exe
+      working-directory: ${{github.workspace}}/build
+      run: ctest -V --test-dir benchmark -C ${{matrix.build_type}}

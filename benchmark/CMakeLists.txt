@@ -83,3 +83,24 @@ if (UMF_BUILD_LIBUMF_POOL_SCALABLE)
 		target_compile_definitions(multithread_bench PRIVATE UMF_BUILD_LIBUMF_POOL_SCALABLE=1)
 	endif()
 endif()
+
+# make that ubench can be run using ctest
+add_test(NAME ubench
+	COMMAND ubench
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+set_tests_properties(ubench PROPERTIES
+	LABELS "benchmark"
+	PASS_REGULAR_EXPRESSION "PASSED")
+
+if(WINDOWS)
+	# append PATH to DLLs
+	set(DLL_PATH_LIST "PATH=path_list_append:../bin/$<CONFIG>")
+	if(LIBHWLOC_DLL_DIRS)
+		set(DLL_PATH_LIST "${DLL_PATH_LIST};PATH=path_list_append:${LIBHWLOC_DLL_DIRS}")
+	endif()
+	if(LIBTBB_DLL_DIRS)
+		set(DLL_PATH_LIST "${DLL_PATH_LIST};PATH=path_list_append:${LIBTBB_DLL_DIRS}")
+	endif()
+	set_property(TEST ubench PROPERTY ENVIRONMENT_MODIFICATION "${DLL_PATH_LIST}")
+endif()
