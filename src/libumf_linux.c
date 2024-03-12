@@ -12,14 +12,14 @@
 #include "base_alloc_global.h"
 #include "memspace_host_all_internal.h"
 #include "provider_tracking.h"
+#include "utils_concurrency.h"
 
+static UTIL_ONCE_FLAG umf_is_initialized = UTIL_ONCE_FLAG_INIT;
 umf_memory_tracker_handle_t TRACKER = NULL;
 
-void __attribute__((constructor)) umfCreate(void) {
-    TRACKER = umfMemoryTrackerCreate();
-}
+static void umfCreateOnce(void) { TRACKER = umfMemoryTrackerCreate(); }
 
-void __attribute__((destructor)) umfDestroy(void) {
+static void umfDestroyOnce(void) {
     umf_memory_tracker_handle_t t = TRACKER;
     // make sure TRACKER is not used after being destroyed
     TRACKER = NULL;
@@ -30,6 +30,15 @@ void __attribute__((destructor)) umfDestroy(void) {
 #endif
 }
 
-void libumfInit(void) {
-    // do nothing, additional initialization not needed
+static void libumfInitOnce(void) {
+    umfCreateOnce();
+    atexit(umfDestroyOnce);
 }
+
+void libumfInit(void) { util_init_once(&umf_is_initialized, libumfInitOnce); }
+
+void __attribute__((constructor)) umfCreate(void) {
+    util_init_once(&umf_is_initialized, umfCreateOnce);
+}
+
+void __attribute__((destructor)) umfDestroy(void) { umfDestroyOnce(); }
