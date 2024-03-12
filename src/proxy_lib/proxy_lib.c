@@ -65,6 +65,7 @@
  * by an application.
  */
 
+static UTIL_ONCE_FLAG Proxy_lib_initialized = UTIL_ONCE_FLAG_INIT;
 static UTIL_ONCE_FLAG Base_alloc_leak_initialized = UTIL_ONCE_FLAG_INIT;
 static umf_ba_linear_pool_t *Base_alloc_leak = NULL;
 static umf_memory_provider_handle_t OS_memory_provider = NULL;
@@ -77,7 +78,8 @@ static __TLS int was_called_from_umfPool = 0;
 /*** The constructor and destructor of the proxy library *********************/
 /*****************************************************************************/
 
-void proxy_lib_create_common(void) {
+static void proxy_lib_create_once(void) {
+    was_called_from_umfPool = 1;
     umf_os_memory_provider_params_t os_params =
         umfOsMemoryProviderParamsDefault();
     enum umf_result_t umf_result;
@@ -97,6 +99,11 @@ void proxy_lib_create_common(void) {
     }
     // The UMF pool has just been created (Proxy_pool != NULL). Stop using
     // the linear allocator and start using the UMF pool allocator from now on.
+    was_called_from_umfPool = 0;
+}
+
+void proxy_lib_create_common(void) {
+    util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
 }
 
 void proxy_lib_destroy_common(void) {
@@ -175,6 +182,10 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 /*****************************************************************************/
 
 void *malloc(size_t size) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolMalloc(Proxy_pool, size);
@@ -186,6 +197,10 @@ void *malloc(size_t size) {
 }
 
 void *calloc(size_t nmemb, size_t size) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
@@ -197,6 +212,10 @@ void *calloc(size_t nmemb, size_t size) {
 }
 
 void *realloc(void *ptr, size_t size) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (ptr == NULL) {
         return malloc(size);
     }
@@ -223,6 +242,10 @@ void *realloc(void *ptr, size_t size) {
 }
 
 void free(void *ptr) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (ptr == NULL) {
         return;
     }
@@ -244,6 +267,10 @@ void free(void *ptr) {
 }
 
 void *aligned_alloc(size_t alignment, size_t size) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
@@ -255,6 +282,10 @@ void *aligned_alloc(size_t alignment, size_t size) {
 }
 
 size_t malloc_usable_size(void *ptr) {
+    if (!was_called_from_umfPool) {
+        util_init_once(&Proxy_lib_initialized, proxy_lib_create_once);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
