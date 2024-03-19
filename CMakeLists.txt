@@ -42,6 +42,39 @@ set(UMF_PROXY_LIB_BASED_ON_POOL
 set(KNOWN_BUILD_TYPES Release Debug RelWithDebInfo MinSizeRel)
 string(REPLACE ";" " " KNOWN_BUILD_TYPES_STR "${KNOWN_BUILD_TYPES}")
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(LINUX TRUE)
+    set(OS_NAME "linux")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+    set(WINDOWS TRUE)
+    set(OS_NAME "windows")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(MACOSX TRUE)
+    set(OS_NAME "macosx")
+else()
+    message(FATAL_ERROR "Unknown OS type")
+endif()
+
+if(WINDOWS)
+    if($<CONFIG:Release>)
+        message(WARNING "1) CONFIG = $<CONFIG:Release>")
+    elseif($<CONFIG:Debug>)
+        message(WARNING "2) CONFIG = $<CONFIG:Debug>")
+    else()
+        message(WARNING "3) CONFIG = $<CONFIG>")
+    endif()
+endif()
+
+if(WINDOWS AND $<CONFIG:Release>)
+    # TODO: enable the proxy library in the Debug build on Windows
+    message(WARNING "WINDOWS AND $<CONFIG:Release>")
+endif()
+
+if(WINDOWS AND NOT $<CONFIG:Release>)
+    # TODO: enable the proxy library in the Debug build on Windows
+    message(WARNING "WINDOWS AND NOT $<CONFIG:Release>")
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
     message(
         STATUS
@@ -86,19 +119,6 @@ find_package(PkgConfig)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(helpers)
-
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(LINUX TRUE)
-    set(OS_NAME "linux")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-    set(WINDOWS TRUE)
-    set(OS_NAME "windows")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(MACOSX TRUE)
-    set(OS_NAME "macosx")
-else()
-    message(FATAL_ERROR "Unknown OS type")
-endif()
 
 # needed when UMF is used as an external project
 set(UMF_CMAKE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -194,7 +214,7 @@ if(UMF_BUILD_LIBUMF_POOL_JEMALLOC)
 endif()
 
 # set UMF_PROXY_LIB_ENABLED
-if(WINDOWS AND NOT (CMAKE_BUILD_TYPE STREQUAL "Release"))
+if(WINDOWS AND NOT $<CONFIG:Release>)
     # TODO: enable the proxy library in the Debug build on Windows
     message(
         STATUS
