@@ -182,6 +182,12 @@ if(UMF_BUILD_LIBUMF_POOL_SCALABLE)
     if(NOT TBB_FOUND)
         find_package(TBB REQUIRED tbb)
     endif()
+
+    message(STATUS "    TBB_LIBRARIES = ${TBB_LIBRARIES}")
+    message(STATUS "    TBB_INCLUDE_DIRS = ${TBB_INCLUDE_DIRS}")
+    message(STATUS "    TBB_LIBRARY_DIRS = ${TBB_LIBRARY_DIRS}")
+    message(STATUS "    TBB_DLL_DIRS = ${TBB_DLL_DIRS}")
+
     # add PATH to DLL on Windows
     set(DLL_PATH_LIST
         "${DLL_PATH_LIST};PATH=path_list_append:${TBB_LIBRARY_DIRS}/../bin")
