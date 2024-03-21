@@ -117,7 +117,15 @@ umf_ba_linear_pool_t *umf_ba_linear_create(size_t pool_size) {
     return pool;
 }
 
+#define DEBUG_MARKER 0xABCDEF
+
+typedef struct debug_meta_t {
+    uintptr_t marker; // = DEBUG_MARKER
+    uintptr_t pool;
+} debug_meta_t;
+
 void *umf_ba_linear_alloc(umf_ba_linear_pool_t *pool, size_t size) {
+    size += sizeof(debug_meta_t);
     size_t aligned_size = ALIGN_UP(size, MEMORY_ALIGNMENT);
     util_mutex_lock(&pool->metadata.lock);
     if (pool->metadata.size_left < aligned_size) {
@@ -160,16 +168,22 @@ void *umf_ba_linear_alloc(umf_ba_linear_pool_t *pool, size_t size) {
     void *ptr = pool->metadata.data_ptr;
     pool->metadata.data_ptr += aligned_size;
     pool->metadata.size_left -= aligned_size;
+    debug_meta_t *debug_meta = ptr;
+    debug_meta->marker = DEBUG_MARKER;
     if (pool->next_pool) {
         pool->next_pool->pool_n_allocs++;
+        // save address of the pool at the beginning of the allocation
+        debug_meta->pool = (uintptr_t)pool->next_pool;
     } else {
         pool->metadata.pool_n_allocs++;
+        // save address of the pool at the beginning of the allocation
+        debug_meta->pool = (uintptr_t)pool;
     }
     _DEBUG_EXECUTE(pool->metadata.global_n_allocs++);
     _DEBUG_EXECUTE(ba_debug_checks(pool));
     util_mutex_unlock(&pool->metadata.lock);
 
-    return ptr;
+    return (char *)ptr + sizeof(debug_meta_t);
 }
 
 // check if ptr belongs to pool
@@ -179,6 +193,16 @@ static inline int pool_contains_ptr(void *pool, size_t pool_size,
             (char *)ptr < ((char *)(pool)) + pool_size);
 }
 
+static inline void print_pool_contains_ptr(void *pool, size_t pool_size,
+                                           void *data_begin, void *ptr) {
+    fprintf(stderr,
+            "FATAL ERROR: ptr - begin = %lli, end - ptr = %lli, pool_size = "
+            "%zu, meta_size = %lli\n",
+            (char *)ptr - (char *)data_begin,
+            ((char *)(pool) + pool_size) - (char *)ptr, pool_size,
+            (char *)data_begin - (char *)pool);
+}
+
 // umf_ba_linear_free() really frees memory only if all allocations from an inactive pool were freed
 // It returns:
 // 0  - ptr belonged to the pool and was freed
@@ -186,6 +210,14 @@ static inline int pool_contains_ptr(void *pool, size_t pool_size,
 int umf_ba_linear_free(umf_ba_linear_pool_t *pool, void *ptr) {
     util_mutex_lock(&pool->metadata.lock);
     _DEBUG_EXECUTE(ba_debug_checks(pool));
+
+    debug_meta_t *debug_meta =
+        (debug_meta_t *)((char *)ptr - sizeof(debug_meta_t));
+    void *saved_pool = NULL;
+    if (debug_meta->marker == DEBUG_MARKER) {
+        saved_pool = (void *)debug_meta->pool;
+    }
+
     if (pool_contains_ptr(pool, pool->metadata.pool_size, pool->data, ptr)) {
         pool->metadata.pool_n_allocs--;
         _DEBUG_EXECUTE(pool->metadata.global_n_allocs--);
@@ -202,6 +234,9 @@ int umf_ba_linear_free(umf_ba_linear_pool_t *pool, void *ptr) {
         _DEBUG_EXECUTE(ba_debug_checks(pool));
         util_mutex_unlock(&pool->metadata.lock);
         return 0;
+    } else if (pool == saved_pool) {
+        print_pool_contains_ptr(pool, pool->metadata.pool_size, pool->data,
+                                ptr);
     }
 
     umf_ba_next_linear_pool_t *next_pool = pool->next_pool;
@@ -225,6 +260,9 @@ int umf_ba_linear_free(umf_ba_linear_pool_t *pool, void *ptr) {
             _DEBUG_EXECUTE(ba_debug_checks(pool));
             util_mutex_unlock(&pool->metadata.lock);
             return 0;
+        } else if (next_pool == saved_pool) {
+            print_pool_contains_ptr(next_pool, next_pool->pool_size,
+                                    next_pool->data, ptr);
         }
         prev_pool = next_pool;
         next_pool = next_pool->next_pool;

@@ -83,6 +83,10 @@ TEST_F(test, baseAllocLinearMultiThreadedAllocMemset) {
             UT_ASSERTne(buffer[i].ptr, NULL);
             memset(buffer[i].ptr, (i + TID) & 0xFF, buffer[i].size);
             n_allocs++;
+            if (buffer[i].size == 0) {
+                fprintf(stderr, "buffer[i = %i].size = 0, .ptr = %p\n", i,
+                        buffer[i].ptr);
+            }
         }
 
         for (int i = 0; i < ITERATIONS; i++) {
