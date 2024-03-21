@@ -72,6 +72,9 @@ TEST_F(test, baseAllocLinearMultiThreadedAllocMemset) {
             size_t size;
         } buffer[ITERATIONS];
 
+        int n_allocs = 0;
+        int n_frees = 0;
+
         for (int i = 0; i < ITERATIONS; i++) {
             buffer[i].size =
                 (size_t)((rand() / (double)RAND_MAX) * MAX_ALLOCATION_SIZE);
@@ -79,6 +82,7 @@ TEST_F(test, baseAllocLinearMultiThreadedAllocMemset) {
                 (unsigned char *)umf_ba_linear_alloc(pool, buffer[i].size);
             UT_ASSERTne(buffer[i].ptr, NULL);
             memset(buffer[i].ptr, (i + TID) & 0xFF, buffer[i].size);
+            n_allocs++;
         }
 
         for (int i = 0; i < ITERATIONS; i++) {
@@ -89,7 +93,17 @@ TEST_F(test, baseAllocLinearMultiThreadedAllocMemset) {
         }
 
         for (int i = 0; i < ITERATIONS; i++) {
-            umf_ba_linear_free(pool, buffer[i].ptr);
+            if (umf_ba_linear_free(pool, buffer[i].ptr)) {
+                fprintf(stderr,
+                        "FAILED umf_ba_linear_free(pool = %p, buffer[i = "
+                        "%i].ptr = %p)\n",
+                        (void *)pool, i, buffer[i].ptr);
+            } else {
+                n_frees++;
+            }
+        }
+        if (n_allocs != n_frees) {
+            fprintf(stderr, "n_allocs = %i n_frees = %i\n", n_allocs, n_frees);
         }
     };
 

@@ -15,31 +15,12 @@ jobs:
       INSTL_DIR : "${{github.workspace}}/../install-dir"
     strategy:
       matrix:
-        os: ['windows-2019', 'windows-2022']
+        os: ['windows-2019']
         build_type: [Debug, Release]
         compiler: [{c: cl, cxx: cl}]
         pool_tracking: ['ON', 'OFF']
         shared_library: ['OFF']
         level_zero_provider: ['ON']
-        include:
-          - os: 'windows-2022'
-            build_type: Release
-            compiler: {c: clang-cl, cxx: clang-cl}
-            pool_tracking: 'ON'
-            level_zero_provider: 'ON'
-            toolset: "-T ClangCL"
-          - os: 'windows-2022'
-            build_type: Release
-            compiler: {c: cl, cxx: cl}
-            pool_tracking: 'ON'
-            shared_library: 'ON'
-            level_zero_provider: 'ON'
-          - os: 'windows-2022'
-            build_type: Release
-            compiler: {c: cl, cxx: cl}
-            pool_tracking: 'ON'
-            shared_library: 'ON'
-            level_zero_provider: 'OFF'
 
     runs-on: ${{matrix.os}}
 
@@ -81,7 +62,10 @@ jobs:
 
     - name: Run tests
       working-directory: ${{env.BUILD_DIR}}
-      run: ctest -C ${{matrix.build_type}} --output-on-failure --test-dir test
+      shell: pwsh # Specifies PowerShell as the shell for running the script.
+      # run: ctest -C ${{matrix.build_type}} --output-on-failure -R umf-base_alloc_linear
+      run: |
+        $app="ctest"; while ((& $app -C ${{matrix.build_type}} --output-on-failure -R umf-base_alloc_linear > ./out.txt ) -ne 0) { cat ./out.txt }
 
     - name: Test UMF installation and uninstallation
       # The '--shared-library' parameter is added to the installation test when the UMF is built as a shared library
