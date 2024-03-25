@@ -189,14 +189,7 @@ if(UMF_BUILD_LIBUMF_POOL_JEMALLOC)
     )
 endif()
 
-# set UMF_PROXY_LIB_ENABLED
-if(WINDOWS AND NOT (CMAKE_BUILD_TYPE STREQUAL "Release"))
-    # TODO: enable the proxy library in the Debug build on Windows
-    message(
-        STATUS
-            "Disabling the proxy library, because it is supported only in the Release build on Windows (CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE})"
-    )
-elseif(UMF_PROXY_LIB_BASED_ON_POOL STREQUAL SCALABLE)
+if(UMF_PROXY_LIB_BASED_ON_POOL STREQUAL SCALABLE)
     if(UMF_BUILD_LIBUMF_POOL_SCALABLE)
         set(UMF_PROXY_LIB_ENABLED ON)
         set(PROXY_LIB_USES_SCALABLE_POOL ON)
