@@ -96,6 +96,7 @@ static __TLS int was_called_from_umfPool = 0;
 /*****************************************************************************/
 
 void proxy_lib_create_common(void) {
+    fprintf(stderr, ">>> proxy_lib_create_common START \n");
     umf_os_memory_provider_params_t os_params =
         umfOsMemoryProviderParamsDefault();
     enum umf_result_t umf_result;
@@ -116,6 +117,7 @@ void proxy_lib_create_common(void) {
     }
     // The UMF pool has just been created (Proxy_pool != NULL). Stop using
     // the linear allocator and start using the UMF pool allocator from now on.
+    fprintf(stderr, ">>> proxy_lib_create_common END \n");
 }
 
 void proxy_lib_destroy_common(void) {
@@ -212,23 +214,28 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 
 void *malloc(size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
+        fprintf(stderr, ">>> umfPoolMalloc(%zu) START\n", size);
         was_called_from_umfPool = 1;
         void *ptr = umfPoolMalloc(Proxy_pool, size);
         was_called_from_umfPool = 0;
+        fprintf(stderr, ">>> umfPoolMalloc(%zu) END\n", size);
         return ptr;
     }
 
+    fprintf(stderr, ">>> malloc_linear() \n");
     return ba_leak_malloc(size);
 }
 
 void *calloc(size_t nmemb, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
+        fprintf(stderr, ">>> calloc_pool() \n");
         was_called_from_umfPool = 1;
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
         was_called_from_umfPool = 0;
         return ptr;
     }
 
+    fprintf(stderr, ">>> calloc_linear() \n");
     return ba_leak_calloc(nmemb, size);
 }
 
@@ -237,11 +244,15 @@ void free(void *ptr) {
         return;
     }
 
+    fprintf(stderr, ">>> free_linear() START\n");
     if (ba_leak_free(ptr) == 0) {
+        fprintf(stderr, ">>> free_linear() SUCCESS\n");
         return;
     }
+    fprintf(stderr, ">>> free_linear() FAILED\n");
 
     if (Proxy_pool) {
+        fprintf(stderr, ">>> free_pool() \n");
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
             fprintf(stderr, "error: umfPoolFree() failed\n");
             assert(0);
@@ -255,6 +266,7 @@ void free(void *ptr) {
 
 #ifdef _WIN32
 void _free_dbg(void *userData, int blockType) {
+    fprintf(stderr, ">>> _free_dbg() START\n");
     (void)blockType; // unused
     free(userData);
 }
@@ -270,15 +282,19 @@ void *realloc(void *ptr, size_t size) {
         return NULL;
     }
 
+    fprintf(stderr, ">>> realloc() START - ba_leak_pool_contains_pointer\n");
     size_t leak_pool_contains_pointer = ba_leak_pool_contains_pointer(ptr);
     if (leak_pool_contains_pointer) {
+        fprintf(stderr, ">>> realloc_linear() \n");
         return ba_leak_realloc(ptr, size, leak_pool_contains_pointer);
     }
 
     if (Proxy_pool) {
+        fprintf(stderr, ">>> umfPoolRealloc() START\n");
         was_called_from_umfPool = 1;
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
         was_called_from_umfPool = 0;
+        fprintf(stderr, ">>> umfPoolRealloc() END\n");
         return new_ptr;
     }
 
@@ -288,12 +304,14 @@ void *realloc(void *ptr, size_t size) {
 
 void *aligned_alloc(size_t alignment, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
+        fprintf(stderr, ">>> aligned_alloc_pool() \n");
         was_called_from_umfPool = 1;
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
         was_called_from_umfPool = 0;
         return ptr;
     }
 
+    fprintf(stderr, ">>> aligned_alloc_linear() \n");
     return ba_leak_aligned_alloc(alignment, size);
 }
 
@@ -309,11 +327,13 @@ size_t malloc_usable_size(void *ptr) {
     }
 
     if (!was_called_from_umfPool && Proxy_pool) {
+        fprintf(stderr, ">>> malloc_usable_size_pool() \n");
         was_called_from_umfPool = 1;
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
         was_called_from_umfPool = 0;
         return size;
     }
 
+    fprintf(stderr, ">>> malloc_usable_size_linear() \n");
     return 0; // unsupported in this case
 }

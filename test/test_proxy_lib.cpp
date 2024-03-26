@@ -18,7 +18,11 @@ using umf_test::test;
 
 TEST_F(test, proxyLibBasic) {
 
+    fprintf(stderr, ">>> proxyLibBasic #1 \n");
+
     ::free(::malloc(64));
+
+    fprintf(stderr, ">>> proxyLibBasic #2 \n");
 
     // a check to verify we are running the proxy library
     void *ptr = (void *)0x01;
@@ -29,5 +33,8 @@ TEST_F(test, proxyLibBasic) {
 #else
     size_t size = ::malloc_usable_size(ptr);
 #endif
+
+    fprintf(stderr, ">>> proxyLibBasic #3 \n");
+
     UT_ASSERTeq(size, 0xDEADBEEF);
 }
