@@ -37,6 +37,7 @@
 #include "base_alloc_linear.h"
 #include "proxy_lib.h"
 #include "utils_common.h"
+#include "utils_sanitizers.h"
 
 #ifdef _WIN32 /* Windows ***************************************/
 
@@ -140,21 +141,21 @@ void proxy_lib_destroy_common(void) {
 /*****************************************************************************/
 
 static inline void *ba_generic_realloc(umf_ba_linear_pool_t *pool, void *ptr,
-                                       size_t new_size, size_t max_size) {
+                                       size_t new_size, size_t old_size) {
     assert(ptr);      // it should be verified in the main realloc()
     assert(new_size); // it should be verified in the main realloc()
-    assert(max_size); // max_size should be set in the main realloc()
+    assert(old_size); // old_size should be set in the main realloc()
+
+    if (new_size <= old_size) {
+        return ptr;
+    }
 
     void *new_ptr = umf_ba_linear_alloc(pool, new_size);
     if (!new_ptr) {
         return NULL;
     }
 
-    if (new_size > max_size) {
-        new_size = max_size;
-    }
-
-    memcpy(new_ptr, ptr, new_size);
+    memcpy(new_ptr, ptr, old_size);
 
     // we can free the old ptr now
     umf_ba_linear_free(pool, ptr);
@@ -174,26 +175,14 @@ static void ba_leak_init_once(void) {
     util_init_once(&Base_alloc_leak_initialized, ba_leak_create);
 }
 
-static inline void *ba_leak_malloc(size_t size) {
+static inline void *ba_leak_alloc(size_t size) {
     ba_leak_init_once();
     return umf_ba_linear_alloc(Base_alloc_leak, size);
 }
 
-static inline void *ba_leak_calloc(size_t nmemb, size_t size) {
+static inline void *ba_leak_realloc(void *ptr, size_t size, size_t old_size) {
     ba_leak_init_once();
-    // umf_ba_linear_alloc() returns zeroed memory
-    return umf_ba_linear_alloc(Base_alloc_leak, nmemb * size);
-}
-
-static inline void *ba_leak_realloc(void *ptr, size_t size, size_t max_size) {
-    ba_leak_init_once();
-    return ba_generic_realloc(Base_alloc_leak, ptr, size, max_size);
-}
-
-static inline void *ba_leak_aligned_alloc(size_t alignment, size_t size) {
-    ba_leak_init_once();
-    void *ptr = umf_ba_linear_alloc(Base_alloc_leak, size + alignment);
-    return (void *)ALIGN_UP((uintptr_t)ptr, alignment);
+    return ba_generic_realloc(Base_alloc_leak, ptr, size, old_size);
 }
 
 static inline int ba_leak_free(void *ptr) {
@@ -201,9 +190,104 @@ static inline int ba_leak_free(void *ptr) {
     return umf_ba_linear_free(Base_alloc_leak, ptr);
 }
 
+#ifndef NDEBUG
 static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
     ba_leak_init_once();
     return umf_ba_linear_pool_contains_pointer(Base_alloc_leak, ptr);
+}
+#endif
+
+/*****************************************************************************/
+/*** The UMF pool allocator helper functions *********************************/
+/*****************************************************************************/
+
+#define ALLOC_METADATA_SIZE (sizeof(size_t))
+#define ALIGNMENT_BITS 24
+#define OWNER_LINEAR_ALLOCATOR 0x11
+#define OWNER_POOL_ALLOCATOR 0x22
+
+// Stores metadata just before 'ptr' and returns beginning of usable
+// space to the user. Metadata consists of 'size' that is the allocation
+// size, 'offset' that specifies how far is the returned ptr from
+// the origin ptr (used for aligned alloc) and the owner's marker.
+static void *add_metadata_and_align(void *ptr, size_t size, size_t alignment,
+                                    unsigned char owner) {
+    assert(size < (1ULL << 32));
+    assert(alignment < (1ULL << ALIGNMENT_BITS));
+    assert(ptr);
+
+    void *user_ptr;
+    if (alignment <= ALLOC_METADATA_SIZE) {
+        user_ptr = (void *)((uintptr_t)ptr + ALLOC_METADATA_SIZE);
+    } else {
+        user_ptr =
+            (void *)ALIGN_UP((uintptr_t)ptr + ALLOC_METADATA_SIZE, alignment);
+    }
+
+    size_t ptr_offset_from_original = (uintptr_t)user_ptr - (uintptr_t)ptr;
+    assert(ptr_offset_from_original < (1ULL << ALIGNMENT_BITS));
+
+    size_t *metadata_loc = (size_t *)((char *)user_ptr - ALLOC_METADATA_SIZE);
+
+    // mark entire allocation as undefined memory so that we can store metadata
+    utils_annotate_memory_undefined(ptr, size);
+
+    *metadata_loc = size | (ptr_offset_from_original << 32) |
+                    ((size_t)owner << (32 + ALIGNMENT_BITS));
+
+    // mark the metadata part as inaccessible
+    utils_annotate_memory_inaccessible(ptr, ptr_offset_from_original);
+
+    return user_ptr;
+}
+
+// Return original ptr (the one that has been passed to add_metadata_and_align())
+// along with total allocation size (needed by realloc()) and usable size.
+static void *get_original_alloc(void *user_ptr, size_t *total_size,
+                                size_t *usable_size, unsigned char *owner) {
+    assert(user_ptr);
+
+    size_t *metadata_loc = (size_t *)((char *)user_ptr - ALLOC_METADATA_SIZE);
+
+    // mark the metadata as defined to read the size, offset and owner
+    utils_annotate_memory_defined(metadata_loc, ALLOC_METADATA_SIZE);
+
+    size_t stored_size = *metadata_loc & ((1ULL << 32) - 1);
+    size_t ptr_offset_from_original =
+        (*metadata_loc >> 32) & ((1ULL << ALIGNMENT_BITS) - 1);
+    unsigned char marker = *metadata_loc >> (32 + ALIGNMENT_BITS);
+
+    // restore the original access mode
+    utils_annotate_memory_inaccessible(metadata_loc, ALLOC_METADATA_SIZE);
+
+    void *original_ptr =
+        (void *)((uintptr_t)user_ptr - ptr_offset_from_original);
+
+    if (total_size) {
+        *total_size = stored_size;
+    }
+
+    if (usable_size) {
+        *usable_size = stored_size - ptr_offset_from_original;
+    }
+
+    if (owner) {
+        *owner = marker;
+    }
+
+    return original_ptr;
+}
+
+static void add_size_for_metadata_and_alignment(size_t *psize,
+                                                size_t alignment) {
+    assert(psize);
+
+    // for metadata
+    *psize += ALLOC_METADATA_SIZE;
+
+    if (alignment > ALLOC_METADATA_SIZE) {
+        *psize += alignment;
+    }
 }
 
 /*****************************************************************************/
@@ -211,25 +295,44 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 /*****************************************************************************/
 
 void *malloc(size_t size) {
+    if (size == 0) {
+        return NULL;
+    }
+
+    add_size_for_metadata_and_alignment(&size, ALLOC_METADATA_SIZE);
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolMalloc(Proxy_pool, size);
         was_called_from_umfPool = 0;
-        return ptr;
+        return add_metadata_and_align(ptr, size, 0, OWNER_POOL_ALLOCATOR);
     }
 
-    return ba_leak_malloc(size);
+    return add_metadata_and_align(ba_leak_alloc(size), size, 0,
+                                  OWNER_LINEAR_ALLOCATOR);
 }
 
 void *calloc(size_t nmemb, size_t size) {
+    size_t total_size = nmemb * size;
+    if (total_size == 0) {
+        return NULL;
+    }
+
+    add_size_for_metadata_and_alignment(&total_size, ALLOC_METADATA_SIZE);
+
     if (!was_called_from_umfPool && Proxy_pool) {
+        // count new value of nmemb, because total_size has been increased
+        nmemb = (total_size / size) + ((total_size % size) ? 1 : 0);
         was_called_from_umfPool = 1;
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
         was_called_from_umfPool = 0;
-        return ptr;
+        return add_metadata_and_align(ptr, nmemb * size, 0,
+                                      OWNER_POOL_ALLOCATOR);
     }
 
-    return ba_leak_calloc(nmemb, size);
+    // ba_leak_alloc() returns zeroed memory
+    return add_metadata_and_align(ba_leak_alloc(total_size), total_size, 0,
+                                  OWNER_LINEAR_ALLOCATOR);
 }
 
 void free(void *ptr) {
@@ -237,19 +340,38 @@ void free(void *ptr) {
         return;
     }
 
-    if (ba_leak_free(ptr) == 0) {
-        return;
-    }
+    unsigned char owner;
+    void *orig_ptr = ptr;
+    ptr = get_original_alloc(ptr, NULL, NULL, &owner);
 
-    if (Proxy_pool) {
+    if (owner == OWNER_POOL_ALLOCATOR) {
+        if (Proxy_pool == NULL) {
+            fprintf(stderr, "free(): proxy pool had already been destroyed\n");
+            assert(0);
+            return;
+        }
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
-            fprintf(stderr, "error: umfPoolFree() failed\n");
+            fprintf(stderr, "free(): umfPoolFree() failed\n");
             assert(0);
         }
         return;
     }
 
-    assert(0);
+    if (owner == OWNER_LINEAR_ALLOCATOR) {
+        if (ba_leak_free(ptr) != 0) {
+            fprintf(stderr, "free(): ba_leak_free() failed\n");
+            assert(0);
+        }
+        return;
+    }
+
+    // The pointer comes from another unknown allocator.
+    // It can happen when the proxy library is not loaded via LD_PRELOAD
+    // but it is linked dynamically.
+    // We can do nothing in such case but return.
+    assert(ba_leak_pool_contains_pointer(orig_ptr) == 0);
+    (void)orig_ptr; // unused
+
     return;
 }
 
@@ -270,31 +392,52 @@ void *realloc(void *ptr, size_t size) {
         return NULL;
     }
 
-    size_t leak_pool_contains_pointer = ba_leak_pool_contains_pointer(ptr);
-    if (leak_pool_contains_pointer) {
-        return ba_leak_realloc(ptr, size, leak_pool_contains_pointer);
-    }
+    size_t old_size;
+    unsigned char owner;
+    ptr = get_original_alloc(ptr, &old_size, NULL, &owner);
 
-    if (Proxy_pool) {
+    if (owner == OWNER_POOL_ALLOCATOR) {
+        if (Proxy_pool == NULL) {
+            fprintf(stderr,
+                    "realloc(): proxy pool had already been destroyed\n");
+            assert(0);
+            return NULL;
+        }
         was_called_from_umfPool = 1;
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
         was_called_from_umfPool = 0;
-        return new_ptr;
+        return add_metadata_and_align(new_ptr, size, 0, OWNER_POOL_ALLOCATOR);
     }
 
+    if (owner == OWNER_LINEAR_ALLOCATOR) {
+        assert(ba_leak_pool_contains_pointer(ptr) > 0);
+        return add_metadata_and_align(ba_leak_realloc(ptr, size, old_size),
+                                      size, 0, OWNER_LINEAR_ALLOCATOR);
+    }
+
+    fprintf(stderr, "realloc(): invalid pointer: %p\n", ptr);
     assert(0);
+
     return NULL;
 }
 
 void *aligned_alloc(size_t alignment, size_t size) {
+    if (size == 0) {
+        return NULL;
+    }
+
+    add_size_for_metadata_and_alignment(&size, alignment);
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
         was_called_from_umfPool = 0;
-        return ptr;
+        return add_metadata_and_align(ptr, size, alignment,
+                                      OWNER_POOL_ALLOCATOR);
     }
 
-    return ba_leak_aligned_alloc(alignment, size);
+    return add_metadata_and_align(ba_leak_alloc(size), size, alignment,
+                                  OWNER_LINEAR_ALLOCATOR);
 }
 
 #ifdef _WIN32
@@ -308,12 +451,29 @@ size_t malloc_usable_size(void *ptr) {
         return 0xDEADBEEF;
     }
 
-    if (!was_called_from_umfPool && Proxy_pool) {
+    size_t usable_size;
+    unsigned char owner;
+    ptr = get_original_alloc(ptr, NULL, &usable_size, &owner);
+
+    if (owner == OWNER_POOL_ALLOCATOR) {
+        if (Proxy_pool == NULL) {
+            fprintf(stderr, "malloc_usable_size(): proxy pool had already been "
+                            "destroyed\n");
+            assert(0);
+            return 0;
+        }
         was_called_from_umfPool = 1;
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
         was_called_from_umfPool = 0;
         return size;
     }
 
-    return 0; // unsupported in this case
+    if (owner == OWNER_LINEAR_ALLOCATOR) {
+        return usable_size;
+    }
+
+    fprintf(stderr, "malloc_usable_size(): invalid pointer: %p\n", ptr);
+    assert(0);
+
+    return 0;
 }
