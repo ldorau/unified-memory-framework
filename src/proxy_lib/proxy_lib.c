@@ -97,6 +97,7 @@ static __TLS int was_called_from_umfPool = 0;
 /*****************************************************************************/
 
 void proxy_lib_create_common(void) {
+    fprintf(stderr, ">>> proxy_lib_create_common START\n");
     umf_os_memory_provider_params_t os_params =
         umfOsMemoryProviderParamsDefault();
     enum umf_result_t umf_result;
@@ -117,6 +118,7 @@ void proxy_lib_create_common(void) {
     }
     // The UMF pool has just been created (Proxy_pool != NULL). Stop using
     // the linear allocator and start using the UMF pool allocator from now on.
+    fprintf(stderr, ">>> proxy_lib_create_common END\n");
 }
 
 void proxy_lib_destroy_common(void) {
@@ -303,11 +305,14 @@ void *malloc(size_t size) {
 
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
+        fprintf(stderr, ">>> umfPoolMalloc() START\n");
         void *ptr = umfPoolMalloc(Proxy_pool, size);
+        fprintf(stderr, ">>> umfPoolMalloc() END\n");
         was_called_from_umfPool = 0;
         return add_metadata_and_align(ptr, size, 0, OWNER_POOL_ALLOCATOR);
     }
 
+    fprintf(stderr, ">>> ba_leak_alloc() START\n");
     return add_metadata_and_align(ba_leak_alloc(size), size, 0,
                                   OWNER_LINEAR_ALLOCATOR);
 }
@@ -324,25 +329,34 @@ void *calloc(size_t nmemb, size_t size) {
         // count new value of nmemb, because total_size has been increased
         nmemb = (total_size / size) + ((total_size % size) ? 1 : 0);
         was_called_from_umfPool = 1;
+        fprintf(stderr, ">>> umfPoolCalloc() START\n");
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
+        fprintf(stderr, ">>> umfPoolCalloc() END\n");
         was_called_from_umfPool = 0;
         return add_metadata_and_align(ptr, nmemb * size, 0,
                                       OWNER_POOL_ALLOCATOR);
     }
 
     // ba_leak_alloc() returns zeroed memory
+    fprintf(stderr, ">>> ba_leak_alloc() START\n");
     return add_metadata_and_align(ba_leak_alloc(total_size), total_size, 0,
                                   OWNER_LINEAR_ALLOCATOR);
 }
+
+static unsigned long long i_free = 0;
 
 void free(void *ptr) {
     if (ptr == NULL) {
         return;
     }
 
+    fprintf(stderr, ">>> free(orig: %p) START #%llu\n", ptr, ++i_free);
+
     unsigned char owner;
     void *orig_ptr = ptr;
     ptr = get_original_alloc(ptr, NULL, NULL, &owner);
+
+    fprintf(stderr, ">>> free(tran: %p) START\n", ptr);
 
     if (owner == OWNER_POOL_ALLOCATOR) {
         if (Proxy_pool == NULL) {
@@ -350,18 +364,22 @@ void free(void *ptr) {
             assert(0);
             return;
         }
+        fprintf(stderr, ">>> umfPoolFree() START\n");
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
             fprintf(stderr, "free(): umfPoolFree() failed\n");
             assert(0);
         }
+        fprintf(stderr, ">>> umfPoolFree() END\n");
         return;
     }
 
     if (owner == OWNER_LINEAR_ALLOCATOR) {
+        fprintf(stderr, ">>> ba_leak_free() START\n");
         if (ba_leak_free(ptr) != 0) {
             fprintf(stderr, "free(): ba_leak_free() failed\n");
             assert(0);
         }
+        fprintf(stderr, ">>> ba_leak_free() END\n");
         return;
     }
 
@@ -369,7 +387,9 @@ void free(void *ptr) {
     // It can happen when the proxy library is not loaded via LD_PRELOAD
     // but it is linked dynamically.
     // We can do nothing in such case but return.
+    fprintf(stderr, ">>> ba_leak_pool_contains_pointer() START\n");
     assert(ba_leak_pool_contains_pointer(orig_ptr) == 0);
+    fprintf(stderr, ">>> ba_leak_pool_contains_pointer() END\n");
     (void)orig_ptr; // unused
 
     return;
@@ -392,6 +412,8 @@ void *realloc(void *ptr, size_t size) {
         return NULL;
     }
 
+    fprintf(stderr, ">>> realloc() START\n");
+
     size_t old_size;
     unsigned char owner;
     ptr = get_original_alloc(ptr, &old_size, NULL, &owner);
@@ -404,12 +426,15 @@ void *realloc(void *ptr, size_t size) {
             return NULL;
         }
         was_called_from_umfPool = 1;
+        fprintf(stderr, ">>> umfPoolRealloc() START\n");
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
+        fprintf(stderr, ">>> umfPoolRealloc() END\n");
         was_called_from_umfPool = 0;
         return add_metadata_and_align(new_ptr, size, 0, OWNER_POOL_ALLOCATOR);
     }
 
     if (owner == OWNER_LINEAR_ALLOCATOR) {
+        fprintf(stderr, ">>> ba_leak_realloc() START\n");
         assert(ba_leak_pool_contains_pointer(ptr) > 0);
         return add_metadata_and_align(ba_leak_realloc(ptr, size, old_size),
                                       size, 0, OWNER_LINEAR_ALLOCATOR);
