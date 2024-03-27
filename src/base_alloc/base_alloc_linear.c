@@ -69,7 +69,6 @@ struct umf_ba_next_linear_pool_t {
 
 #ifndef NDEBUG
 static void ba_debug_checks(umf_ba_linear_pool_t *pool) {
-    fprintf(stderr, ">>> BEFORE ba_debug_checks\n");
     // count pools
     size_t n_pools = 1;
     umf_ba_next_linear_pool_t *next_pool = pool->next_pool;
@@ -79,7 +78,6 @@ static void ba_debug_checks(umf_ba_linear_pool_t *pool) {
         next_pool = next_pool->next_pool;
     }
     assert(n_pools == pool->metadata.n_pools);
-    fprintf(stderr, ">>> AFTER ba_debug_checks\n");
 }
 #endif /* NDEBUG */
 
@@ -242,18 +240,14 @@ int umf_ba_linear_free(umf_ba_linear_pool_t *pool, void *ptr) {
 
     umf_ba_next_linear_pool_t *next_pool = pool->next_pool;
     umf_ba_next_linear_pool_t *prev_pool = NULL;
-    fprintf(stderr, ">>> umf_ba_linear_free() BEFORE WHILE\n");
     while (next_pool != NULL && next_pool != saved_pool) {
         prev_pool = next_pool;
         next_pool = next_pool->next_pool;
     }
-    fprintf(stderr, ">>> umf_ba_linear_free() AFTER WHILE\n");
 
     if (saved_pool == next_pool) {
-        fprintf(stderr, ">>> umf_ba_linear_free() BEFORE ASSERT\n");
         assert(pool_contains_ptr(next_pool, next_pool->pool_size,
                                  next_pool->data, ptr));
-        fprintf(stderr, ">>> umf_ba_linear_free() AFTER ASSERT\n");
         _DEBUG_EXECUTE(pool->metadata.global_n_allocs--);
         next_pool->pool_n_allocs--;
         // pool->next_pool is the active pool - we cannot free it

@@ -312,7 +312,6 @@ void *malloc(size_t size) {
         return add_metadata_and_align(ptr, size, 0, OWNER_POOL_ALLOCATOR);
     }
 
-    fprintf(stderr, ">>> ba_leak_alloc() START\n");
     return add_metadata_and_align(ba_leak_alloc(size), size, 0,
                                   OWNER_LINEAR_ALLOCATOR);
 }
@@ -338,7 +337,6 @@ void *calloc(size_t nmemb, size_t size) {
     }
 
     // ba_leak_alloc() returns zeroed memory
-    fprintf(stderr, ">>> ba_leak_alloc() START\n");
     return add_metadata_and_align(ba_leak_alloc(total_size), total_size, 0,
                                   OWNER_LINEAR_ALLOCATOR);
 }
@@ -356,8 +354,6 @@ void free(void *ptr) {
     void *orig_ptr = ptr;
     ptr = get_original_alloc(ptr, NULL, NULL, &owner);
 
-    fprintf(stderr, ">>> free(tran: %p) START\n", ptr);
-
     if (owner == OWNER_POOL_ALLOCATOR) {
         if (Proxy_pool == NULL) {
             fprintf(stderr, "free(): proxy pool had already been destroyed\n");
@@ -374,12 +370,10 @@ void free(void *ptr) {
     }
 
     if (owner == OWNER_LINEAR_ALLOCATOR) {
-        fprintf(stderr, ">>> ba_leak_free() START\n");
         if (ba_leak_free(ptr) != 0) {
             fprintf(stderr, "free(): ba_leak_free() failed\n");
             assert(0);
         }
-        fprintf(stderr, ">>> ba_leak_free() END\n");
         return;
     }
 
