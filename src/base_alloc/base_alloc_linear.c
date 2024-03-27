@@ -118,14 +118,7 @@ umf_ba_linear_pool_t *umf_ba_linear_create(size_t pool_size) {
     return pool;
 }
 
-#ifndef NDEBUG
-#define DEBUG_MARKER 0xABCDEF
-#endif
-
 typedef struct ptr_metadata_t {
-#ifndef NDEBUG
-    uintptr_t marker; // = DEBUG_MARKER
-#endif
     uintptr_t pool;
 } ptr_metadata_t;
 
@@ -178,7 +171,6 @@ void *umf_ba_linear_alloc(umf_ba_linear_pool_t *pool, size_t size) {
     pool->metadata.data_ptr += aligned_size;
     pool->metadata.size_left -= aligned_size;
     ptr_metadata_t *ptr_metadata = ptr;
-    _DEBUG_EXECUTE(ptr_metadata->marker = DEBUG_MARKER);
     if (pool->next_pool) {
         pool->next_pool->pool_n_allocs++;
         // save address of the pool at the beginning of the allocation
@@ -214,7 +206,6 @@ int umf_ba_linear_free(umf_ba_linear_pool_t *pool, void *ptr) {
 
     ptr_metadata_t *ptr_metadata =
         (ptr_metadata_t *)((char *)ptr - sizeof(ptr_metadata_t));
-    assert(ptr_metadata->marker == DEBUG_MARKER);
     void *saved_pool = (void *)ptr_metadata->pool;
     assert(saved_pool);
 
