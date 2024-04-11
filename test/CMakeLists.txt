@@ -47,6 +47,10 @@ function(add_umf_test)
         set(LIB_DIRS ${LIB_DIRS} ${JEMALLOC_LIBRARY_DIRS})
     endif()
 
+    if(UMF_BUILD_LIBUMF_POOL_SCALABLE)
+        set(LIB_DIRS ${LIB_DIRS} ${TBB_LIBRARY_DIRS})
+    endif()
+
     set(TEST_LIBS
         test_common
         umf
@@ -60,6 +64,10 @@ function(add_umf_test)
         LIBS ${TEST_LIBS})
 
     target_link_directories(${TEST_TARGET_NAME} PRIVATE ${LIB_DIRS})
+
+    if(MACOSX)
+        # target_link_options(${TEST_TARGET_NAME} PRIVATE "-Wl,-export-dynamic")
+    endif()
 
     target_include_directories(
         ${TEST_TARGET_NAME}

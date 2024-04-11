@@ -44,7 +44,14 @@ jobs:
         -DUMF_BUILD_SHARED_LIBRARY=ON
 
     - name: Build UMF
-      run: cmake --build ${{env.BUILD_DIR}} -j $(sysctl -n hw.logicalcpu)
+      run: |
+        ls -al /usr/local/Cellar/tbb/2021.11.0/lib/libtbbmalloc.*
+        ls -al /usr/local/Cellar/tbb/2021.11.0/lib/libtbbmalloc.2.dylib
+        echo
+        echo ">>>>>>>>>>>>>>>>>>>>>>> grep __ZN3rml | grep pool_ | sort -n "
+        nm /usr/local/Cellar/tbb/2021.11.0/lib/libtbbmalloc.2.dylib | grep __ZN3rml | grep pool_ | sort -n || true
+        echo
+        cmake --build ${{env.BUILD_DIR}} -j $(sysctl -n hw.logicalcpu)
 
     - name: Run tests
       working-directory: ${{env.BUILD_DIR}}

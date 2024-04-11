@@ -90,6 +90,17 @@ static const char *tbb_symbol[TBB_POOL_SYMBOLS_MAX] = {
     "?pool_destroy@rml@@YA_NPEAVMemoryPool@1@@Z",
     "?pool_identify@rml@@YAPEAVMemoryPool@1@PEAX@Z",
     "?pool_msize@rml@@YA_KPEAVMemoryPool@1@PEAX@Z"
+#elif __APPLE__
+    // symbols copied from oneTBB/src/tbbmalloc/def/mac64-tbbmalloc.def
+    "libtbbmalloc.2.dylib",
+    "__ZN3rml11pool_mallocEPNS_10MemoryPoolEm",
+    "__ZN3rml12pool_reallocEPNS_10MemoryPoolEPvm",
+    "__ZN3rml19pool_aligned_mallocEPNS_10MemoryPoolEmm",
+    "__ZN3rml9pool_freeEPNS_10MemoryPoolEPv",
+    "__ZN3rml14pool_create_v1ElPKNS_13MemPoolPolicyEPPNS_10MemoryPoolE",
+    "__ZN3rml12pool_destroyEPNS_10MemoryPoolE",
+    "__ZN3rml13pool_identifyEPv",
+    "__ZN3rml10pool_msizeEPNS_10MemoryPoolEPv"
 #else
     // symbols copied from oneTBB/src/tbbmalloc/def/lin64-tbbmalloc.def
     "libtbbmalloc.so.2",
@@ -135,6 +146,24 @@ static int init_tbb_callbacks(tbb_callbacks_t *tbb_callbacks) {
         !tbb_callbacks->pool_aligned_malloc || !tbb_callbacks->pool_free ||
         !tbb_callbacks->pool_create_v1 || !tbb_callbacks->pool_destroy ||
         !tbb_callbacks->pool_identify) {
+#ifndef NDEBUG
+        fprintf(stderr, "tbb_callbacks->pool_malloc = %p\n",
+                *(void **)&tbb_callbacks->pool_malloc);
+        fprintf(stderr, "tbb_callbacks->pool_realloc = %p\n",
+                *(void **)&tbb_callbacks->pool_realloc);
+        fprintf(stderr, "tbb_callbacks->pool_aligned_malloc = %p\n",
+                *(void **)&tbb_callbacks->pool_aligned_malloc);
+        fprintf(stderr, "tbb_callbacks->pool_free = %p\n",
+                *(void **)&tbb_callbacks->pool_free);
+        fprintf(stderr, "tbb_callbacks->pool_create_v1 = %p\n",
+                *(void **)&tbb_callbacks->pool_create_v1);
+        fprintf(stderr, "tbb_callbacks->pool_destroy = %p\n",
+                *(void **)&tbb_callbacks->pool_destroy);
+        fprintf(stderr, "tbb_callbacks->pool_identify = %p\n",
+                *(void **)&tbb_callbacks->pool_identify);
+        fprintf(stderr, "tbb_callbacks->pool_msize = %p\n",
+                *(void **)&tbb_callbacks->pool_msize);
+#endif
         LOG_ERR("Could not find symbols in %s", lib_name);
         util_close_library(tbb_callbacks->lib_handle);
         return -1;

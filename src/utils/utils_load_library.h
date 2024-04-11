@@ -49,13 +49,25 @@ static inline void *util_get_symbol_addr(void *handle, const char *symbol) {
 #else /* Linux */
 
 static inline void *util_open_library(const char *filename) {
-    return dlopen(filename, RTLD_LAZY);
+    void *ptr = dlopen(filename, RTLD_LAZY);
+    if (ptr == NULL) {
+        fprintf(stderr, "dlopen(%s, RTLD_LAZY) failed: %s\n", filename,
+                dlerror());
+    }
+
+    return ptr;
 }
 
 static inline int util_close_library(void *handle) { return dlclose(handle); }
 
 static inline void *util_get_symbol_addr(void *handle, const char *symbol) {
-    return dlsym(handle, symbol);
+    void *ptr = dlsym(handle, symbol);
+    if (ptr == NULL) {
+        fprintf(stderr, "dlsym(%p, %s) failed: %s\n", handle, symbol,
+                dlerror());
+    }
+
+    return ptr;
 }
 
 #endif /* _WIN32 */
