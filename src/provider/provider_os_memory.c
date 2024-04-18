@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "base_alloc_global.h"
+#include "critnib.h"
 #include "provider_os_memory_internal.h"
 #include "utils_log.h"
 
@@ -24,8 +25,15 @@
 
 #define NODESET_STR_BUF_LEN 1024
 
+// maximum size of file used for memory mapping
+#define MAX_SIZE_FD (1ULL << 44)
+
 typedef struct os_memory_provider_t {
     unsigned protection; // combination of OS-specific protection flags
+    unsigned flag;       // memory mapping flag
+    int fd;              // file descriptor for memory mapping
+    size_t size_fd;      // size of file used for memory mapping
+    critnib *ptr_off;    // a critnib storing (ptr, fd_offset) pairs
 
     // NUMA config
     hwloc_bitmap_t nodeset;
@@ -191,6 +199,28 @@ static umf_result_t translate_params(umf_os_memory_provider_params_t *in_params,
         return result;
     }
 
+    result = os_translate_memory_flag(in_params->flag, &provider->flag);
+    if (result != UMF_RESULT_SUCCESS) {
+        LOG_ERR("incorrect memory flag: %u", in_params->flag);
+        return result;
+    }
+
+    provider->fd = os_create_memory_fd(provider->flag);
+    if (provider->fd == -1) {
+        LOG_PERR("creating a file descriptor for memory mapping failed");
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+
+    provider->size_fd = 0; // will be increased during each allocation
+
+    errno = 0;
+    if (provider->fd > 0 && os_set_file_size(provider->fd, MAX_SIZE_FD)) {
+        LOG_PDEBUG("setting file size %llu failed", MAX_SIZE_FD);
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    LOG_DEBUG("size of the memory mapped file set to %llu", MAX_SIZE_FD);
+
     // NUMA config
     int emptyNodeset = in_params->numa_list_len == 0;
     result = translate_numa_mode(in_params->numa_mode, emptyNodeset,
@@ -258,10 +288,19 @@ static umf_result_t os_initialize(void *params, void **provider) {
         }
     }
 
+    os_provider->ptr_off = critnib_new();
+    if (!os_provider->ptr_off) {
+        LOG_ERR("creating IPC cache failed");
+        ret = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        goto err_free_nodeset_str_buf;
+    }
+
     *provider = os_provider;
 
     return UMF_RESULT_SUCCESS;
 
+err_free_nodeset_str_buf:
+    umf_ba_global_free(os_provider->nodeset_str_buf);
 err_destroy_hwloc_topology:
     hwloc_topology_destroy(os_provider->topo);
 err_free_os_provider:
@@ -276,6 +315,9 @@ static void os_finalize(void *provider) {
     }
 
     os_memory_provider_t *os_provider = provider;
+
+    critnib_delete(os_provider->ptr_off);
+
     if (os_provider->nodeset_str_buf) {
         umf_ba_global_free(os_provider->nodeset_str_buf);
     }
@@ -331,7 +373,8 @@ static inline void assert_is_page_aligned(uintptr_t ptr, size_t page_size) {
 }
 
 static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
-                           size_t page_size, int prot, void **out_addr) {
+                           size_t page_size, int prot, int flag, int fd,
+                           void **out_addr, size_t *fd_size) {
     assert(out_addr);
 
     size_t extended_length = length;
@@ -344,8 +387,20 @@ static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
         extended_length += alignment;
     }
 
-    void *ptr = os_mmap(hint_addr, extended_length, prot);
+    size_t fd_offset = 0;
+
+    if (fd > 0) {
+        fd_offset = *fd_size;
+        *fd_size += extended_length;
+        if (*fd_size > MAX_SIZE_FD) {
+            LOG_ERR("cannot grow a file size beyond %llu", MAX_SIZE_FD);
+            return -1;
+        }
+    }
+
+    void *ptr = os_mmap(hint_addr, extended_length, prot, flag, fd, fd_offset);
     if (ptr == NULL) {
+        LOG_PDEBUG("memory mapping failed");
         return -1;
     }
 
@@ -411,15 +466,16 @@ static umf_result_t os_alloc(void *provider, size_t size, size_t alignment,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    int protection = os_provider->protection;
+    size_t fd_offset = os_provider->size_fd; // needed for critnib_insert()
 
     void *addr = NULL;
     errno = 0;
-    ret = os_mmap_aligned(NULL, size, alignment, page_size, protection, &addr);
+    ret = os_mmap_aligned(NULL, size, alignment, page_size,
+                          os_provider->protection, os_provider->flag,
+                          os_provider->fd, &addr, &os_provider->size_fd);
     if (ret) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_ALLOC_FAILED, errno);
         LOG_PERR("memory allocation failed");
-
         return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
     }
 
@@ -429,7 +485,6 @@ static umf_result_t os_alloc(void *provider, size_t size, size_t alignment,
         LOG_ERR("allocated address 0x%llx is not aligned to %zu (0x%zx) "
                 "bytes",
                 (unsigned long long)addr, alignment, alignment);
-
         goto err_unmap;
     }
 
@@ -460,6 +515,16 @@ static umf_result_t os_alloc(void *provider, size_t size, size_t alignment,
         }
     }
 
+    if (os_provider->fd > 0) {
+        ret = critnib_insert(os_provider->ptr_off, (uintptr_t)addr,
+                             (void *)(uintptr_t)fd_offset, 0 /* update */);
+        if (ret) {
+            LOG_DEBUG("inserting a value to the IPC cache failed (addr=%p, "
+                      "offset=%zu)",
+                      addr, fd_offset);
+        }
+    }
+
     *resultPtr = addr;
 
     return UMF_RESULT_SUCCESS;
@@ -472,6 +537,12 @@ err_unmap:
 static umf_result_t os_free(void *provider, void *ptr, size_t size) {
     if (provider == NULL || ptr == NULL) {
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    os_memory_provider_t *os_provider = (os_memory_provider_t *)provider;
+
+    if (os_provider->fd > 0) {
+        critnib_remove(os_provider->ptr_off, (uintptr_t)ptr);
     }
 
     errno = 0;

@@ -29,6 +29,14 @@ typedef enum umf_mem_protection_flags_t {
     /// @endcond
 } umf_mem_protection_flags_t;
 
+/// @brief Memory flags
+typedef enum umf_memory_flags_t {
+    UMF_MEM_NONE = 0,               ///< No flag
+    UMF_MEM_MAP_PRIVATE = (1 << 0), ///< private memory mapping
+    UMF_MEM_MAP_SHARED =
+        (1 << 1), ///< shared memory mapping (supported on Linux only)
+} umf_memory_flags_t;
+
 /// @brief Memory binding mode
 /// Specifies how memory is bound to NUMA nodes on systems that support NUMA.
 /// Not every mode is supported on every system.
@@ -61,6 +69,8 @@ typedef enum umf_numa_mode_t {
 typedef struct umf_os_memory_provider_params_t {
     /// Combination of 'umf_mem_protection_flags_t' flags
     unsigned protection;
+    /// 'umf_memory_flags_t' flag
+    unsigned flag;
 
     // NUMA config
     /// ordered list of numa nodes
@@ -91,6 +101,7 @@ static inline umf_os_memory_provider_params_t
 umfOsMemoryProviderParamsDefault(void) {
     umf_os_memory_provider_params_t params = {
         UMF_PROTECTION_READ | UMF_PROTECTION_WRITE, /* protection */
+        UMF_MEM_MAP_PRIVATE,                        /* flag */
         NULL,                                       /* numa_list */
         0,                                          /* numa_list_len */
         UMF_NUMA_MODE_DEFAULT,                      /* numa_mode */
