@@ -150,3 +150,35 @@ int os_purge(void *addr, size_t length, int advice) {
 void os_strerror(int errnum, char *buf, size_t buflen) {
     strerror_r(errnum, buf, buflen);
 }
+
+int os_getpid(void) { return getpid(); }
+
+umf_result_t os_duplicate_fd(int pid, int fd_in, int *fd_out) {
+    errno = 0;
+// SYS_pidfd_open is supported since Linux 5.3
+// SYS_pidfd_getfd is supported since Linux 5.6
+#if defined(__NR_pidfd_open) && defined(__NR_pidfd_getfd)
+    int pid_fd = syscall(SYS_pidfd_open, pid, 0);
+    if (pid_fd == -1) {
+        LOG_PDEBUG("SYS_pidfd_open");
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+
+    int fd_dup = syscall(SYS_pidfd_getfd, pid_fd, fd_in, 0);
+    close(pid_fd);
+    if (fd_dup == -1) {
+        LOG_PDEBUG("SYS_pidfd_getfd");
+        return UMF_RESULT_ERROR_UNKNOWN;
+    }
+
+    *fd_out = fd_dup;
+
+    return UMF_RESULT_SUCCESS;
+#else
+    (void)pid;                             // unused
+    (void)fd_in;                           // unused
+    (void)fd_out;                          // unused
+    return UMF_RESULT_ERROR_NOT_SUPPORTED; // unsupported
+                                           // TODO: find another way
+#endif /* defined(__NR_pidfd_open) && defined(__NR_pidfd_getfd) */
+}
