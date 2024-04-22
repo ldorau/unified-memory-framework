@@ -156,23 +156,23 @@ static umf_result_t tracePutIpcHandle(void *provider, void *ipcHandle) {
 }
 
 static umf_result_t traceOpenIpcHandle(void *provider, void *ipcHandle,
-                                       void **ptr) {
+                                       void **ptr, size_t *size) {
     umf_provider_trace_params_priv_t *traceProvider =
         (umf_provider_trace_params_priv_t *)provider;
 
     traceProvider->trace("open_ipc_handle");
     return umfMemoryProviderOpenIPCHandle(traceProvider->hUpstreamProvider,
-                                          ipcHandle, ptr);
+                                          ipcHandle, ptr, size);
 }
 
-static umf_result_t traceCloseIpcHandle(void *provider, void *ptr,
-                                        size_t size) {
+static umf_result_t traceCloseIpcHandle(void *provider, void *ipcHandle,
+                                        void *ptr) {
     umf_provider_trace_params_priv_t *traceProvider =
         (umf_provider_trace_params_priv_t *)provider;
 
     traceProvider->trace("close_ipc_handle");
     return umfMemoryProviderCloseIPCHandle(traceProvider->hUpstreamProvider,
-                                           ptr, size);
+                                           ipcHandle, ptr);
 }
 
 umf_memory_provider_ops_t UMF_TRACE_PROVIDER_OPS = {

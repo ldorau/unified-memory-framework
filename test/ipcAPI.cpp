@@ -95,8 +95,8 @@ struct provider_mock_ipc : public umf_test::provider_base_t {
         (void)providerIpcData;
         return UMF_RESULT_SUCCESS;
     }
-    enum umf_result_t open_ipc_handle(void *providerIpcData,
-                                      void **ptr) noexcept {
+    enum umf_result_t open_ipc_handle(void *providerIpcData, void **ptr,
+                                      size_t *size) noexcept {
         ++stat->openCount;
         provider_ipc_data_t *ipcData =
             static_cast<provider_ipc_data_t *>(providerIpcData);
@@ -108,6 +108,7 @@ struct provider_mock_ipc : public umf_test::provider_base_t {
         memcpy(mapping, ipcData->ptr, ipcData->size);
 
         *ptr = mapping;
+        *size = ipcData->size;
 
         return UMF_RESULT_SUCCESS;
     }
@@ -171,24 +172,24 @@ TEST_F(umfIpcTest, BasicFlow) {
     ASSERT_EQ(handleFullSize, handleHalfSize);
 
     void *fullArray = nullptr;
-    ret = umfOpenIPCHandle(pool.get(), ipcHandleFull, &fullArray);
+    ret = umfOpenIPCHandle(pool.get(), ipcHandleFull, &fullArray, NULL);
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
 
     void *halfArray = nullptr;
-    ret = umfOpenIPCHandle(pool.get(), ipcHandleHalf, &halfArray);
+    ret = umfOpenIPCHandle(pool.get(), ipcHandleHalf, &halfArray, NULL);
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
 
     for (int i = 0; i < (int)SIZE; ++i) {
         ASSERT_EQ(reinterpret_cast<int *>(fullArray)[i], i);
     }
     // Close fullArray before reading halfArray
-    ret = umfCloseIPCHandle(fullArray);
+    ret = umfCloseIPCHandle(ipcHandleFull, fullArray);
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
 
     for (int i = 0; i < (int)SIZE / 2; ++i) {
         ASSERT_EQ(reinterpret_cast<int *>(halfArray)[i], i + SIZE / 2);
     }
-    ret = umfCloseIPCHandle(halfArray);
+    ret = umfCloseIPCHandle(ipcHandleHalf, halfArray);
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
 
     ret = umfPutIPCHandle(ipcHandleFull);
@@ -282,7 +283,7 @@ TEST_F(umfIpcTest, ConcurrentOpenCloseHandles) {
         syncthreads();
         for (auto ipcHandle : ipcHandles) {
             void *ptr;
-            umf_result_t ret = umfOpenIPCHandle(pool.get(), ipcHandle, &ptr);
+            umf_result_t ret = umfOpenIPCHandle(pool.get(), ipcHandle, &ptr, NULL);
             ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
             openedIpcHandles[tid].push_back(ptr);
         }

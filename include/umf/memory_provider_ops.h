@@ -115,21 +115,23 @@ typedef struct umf_memory_provider_ipc_ops_t {
     /// @param provider pointer to the memory provider.
     /// @param providerIpcData pointer to the IPC opaque data structure.
     /// @param ptr [out] pointer to the memory to be used in the current process.
+    /// @param size [out] size of the memory pointed by ptr.
     /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
     ///         UMF_RESULT_ERROR_INVALID_ARGUMENT if providerIpcData cannot be handled by the provider.
     ///         UMF_RESULT_ERROR_NOT_SUPPORTED if IPC functionality is not supported by this provider.
     umf_result_t (*open_ipc_handle)(void *provider, void *providerIpcData,
-                                    void **ptr);
+                                    void **ptr, size_t *size);
 
     ///
     /// @brief Closes an IPC memory handle.
     /// @param provider pointer to the memory provider.
+    /// @param providerIpcData pointer to the IPC opaque data structure.
     /// @param ptr pointer to the memory retrieved with open_ipc_handle function.
-    /// @param size size of the memory address range.
     /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
     ///         UMF_RESULT_ERROR_INVALID_ARGUMENT if invalid \p ptr is passed.
     ///         UMF_RESULT_ERROR_NOT_SUPPORTED if IPC functionality is not supported by this provider.
-    umf_result_t (*close_ipc_handle)(void *provider, void *ptr, size_t size);
+    umf_result_t (*close_ipc_handle)(void *provider, void *providerIpcData,
+                                     void *ptr);
 } umf_memory_provider_ipc_ops_t;
 
 ///

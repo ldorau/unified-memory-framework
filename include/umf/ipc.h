@@ -39,15 +39,18 @@ umf_result_t umfPutIPCHandle(umf_ipc_handle_t ipcHandle);
 /// @param hPool [in] Pool handle where to open the the IPC handle.
 /// @param ipcHandle [in] IPC handle.
 /// @param ptr [out] pointer to the memory in the current process.
+/// @param size [out] size of the memory pointed by ptr.
 /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
 umf_result_t umfOpenIPCHandle(umf_memory_pool_handle_t hPool,
-                              umf_ipc_handle_t ipcHandle, void **ptr);
+                              umf_ipc_handle_t ipcHandle, void **ptr,
+                              size_t *size);
 
 ///
 /// @brief Close IPC handle.
+/// @param ipcHandle [in] IPC handle.
 /// @param ptr [in] pointer to the memory.
 /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
-umf_result_t umfCloseIPCHandle(void *ptr);
+umf_result_t umfCloseIPCHandle(umf_ipc_handle_t ipcHandle, void *ptr);
 
 #ifdef __cplusplus
 }

@@ -346,10 +346,13 @@ static umf_result_t ze_memory_provider_put_ipc_handle(void *provider,
 
 static umf_result_t ze_memory_provider_open_ipc_handle(void *provider,
                                                        void *providerIpcData,
-                                                       void **ptr) {
+                                                       void **ptr,
+                                                       size_t *size) {
     ASSERT(provider != NULL);
     ASSERT(providerIpcData != NULL);
     ASSERT(ptr != NULL);
+    ASSERT(size != NULL);
+    (void)size; // unused
     ze_result_t ze_result;
     struct ipc_data_t *ipc_data = (struct ipc_data_t *)providerIpcData;
     struct ze_memory_provider_t *ze_provider =
@@ -366,11 +369,12 @@ static umf_result_t ze_memory_provider_open_ipc_handle(void *provider,
     return UMF_RESULT_SUCCESS;
 }
 
-static umf_result_t
-ze_memory_provider_close_ipc_handle(void *provider, void *ptr, size_t size) {
+static umf_result_t ze_memory_provider_close_ipc_handle(void *provider,
+                                                        void *providerIpcData,
+                                                        void *ptr) {
     ASSERT(provider != NULL);
     ASSERT(ptr != NULL);
-    (void)size;
+    (void)providerIpcData;
     ze_result_t ze_result;
     struct ze_memory_provider_t *ze_provider =
         (struct ze_memory_provider_t *)provider;

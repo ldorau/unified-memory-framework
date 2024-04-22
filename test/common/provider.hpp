@@ -87,11 +87,12 @@ typedef struct provider_base_t {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     umf_result_t open_ipc_handle([[maybe_unused]] void *providerIpcData,
-                                 [[maybe_unused]] void **ptr) noexcept {
+                                 [[maybe_unused]] void **ptr,
+                                 [[maybe_unused]] size_t *size) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
-    umf_result_t close_ipc_handle([[maybe_unused]] void *ptr,
-                                  [[maybe_unused]] size_t size) noexcept {
+    umf_result_t close_ipc_handle([[maybe_unused]] void *providerIpcData,
+                                  [[maybe_unused]] void *ptr) noexcept {
         return UMF_RESULT_ERROR_UNKNOWN;
     }
 } provider_base_t;

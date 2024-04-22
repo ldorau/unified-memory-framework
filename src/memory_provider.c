@@ -83,18 +83,20 @@ static umf_result_t umfDefaultPutIPCHandle(void *provider,
 }
 
 static umf_result_t umfDefaultOpenIPCHandle(void *provider,
-                                            void *providerIpcData, void **ptr) {
+                                            void *providerIpcData, void **ptr,
+                                            size_t *size) {
     (void)provider;
     (void)providerIpcData;
     (void)ptr;
+    (void)size;
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
-static umf_result_t umfDefaultCloseIPCHandle(void *provider, void *ptr,
-                                             size_t size) {
+static umf_result_t umfDefaultCloseIPCHandle(void *provider,
+                                             void *providerIpcData, void *ptr) {
     (void)provider;
+    (void)providerIpcData;
     (void)ptr;
-    (void)size;
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
@@ -351,14 +353,15 @@ umfMemoryProviderPutIPCHandle(umf_memory_provider_handle_t hProvider,
 
 umf_result_t
 umfMemoryProviderOpenIPCHandle(umf_memory_provider_handle_t hProvider,
-                               void *providerIpcData, void **ptr) {
+                               void *providerIpcData, void **ptr,
+                               size_t *size) {
     return hProvider->ops.ipc.open_ipc_handle(hProvider->provider_priv,
-                                              providerIpcData, ptr);
+                                              providerIpcData, ptr, size);
 }
 
 umf_result_t
 umfMemoryProviderCloseIPCHandle(umf_memory_provider_handle_t hProvider,
-                                void *ptr, size_t size) {
-    return hProvider->ops.ipc.close_ipc_handle(hProvider->provider_priv, ptr,
-                                               size);
+                                void *providerIpcData, void *ptr) {
+    return hProvider->ops.ipc.close_ipc_handle(hProvider->provider_priv,
+                                               providerIpcData, ptr);
 }

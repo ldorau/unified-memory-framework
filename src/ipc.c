@@ -83,7 +83,8 @@ umf_result_t umfPutIPCHandle(umf_ipc_handle_t umfIPCHandle) {
 }
 
 umf_result_t umfOpenIPCHandle(umf_memory_pool_handle_t hPool,
-                              umf_ipc_handle_t umfIPCHandle, void **ptr) {
+                              umf_ipc_handle_t umfIPCHandle, void **ptr,
+                              size_t *size) {
 
     // We cannot use umfPoolGetMemoryProvider function because it returns
     // upstream provider but we need tracking one
@@ -91,7 +92,7 @@ umf_result_t umfOpenIPCHandle(umf_memory_pool_handle_t hPool,
     void *base = NULL;
 
     umf_result_t ret = umfMemoryProviderOpenIPCHandle(
-        hProvider, (void *)umfIPCHandle->providerIpcData, &base);
+        hProvider, (void *)umfIPCHandle->providerIpcData, &base, size);
     if (ret != UMF_RESULT_SUCCESS) {
         LOG_ERR("umfOpenIPCHandle: memory provider failed to IPC handle.");
         return ret;
@@ -101,7 +102,7 @@ umf_result_t umfOpenIPCHandle(umf_memory_pool_handle_t hPool,
     return UMF_RESULT_SUCCESS;
 }
 
-umf_result_t umfCloseIPCHandle(void *ptr) {
+umf_result_t umfCloseIPCHandle(umf_ipc_handle_t umfIPCHandle, void *ptr) {
     umf_alloc_info_t allocInfo;
     umf_result_t ret = umfMemoryTrackerGetAllocInfo(ptr, &allocInfo);
     if (ret != UMF_RESULT_SUCCESS) {
@@ -113,6 +114,6 @@ umf_result_t umfCloseIPCHandle(void *ptr) {
     // upstream provider but we need tracking one
     umf_memory_provider_handle_t hProvider = allocInfo.pool->provider;
 
-    return umfMemoryProviderCloseIPCHandle(hProvider, allocInfo.base,
-                                           allocInfo.size);
+    return umfMemoryProviderCloseIPCHandle(hProvider, umfIPCHandle,
+                                           allocInfo.base);
 }
