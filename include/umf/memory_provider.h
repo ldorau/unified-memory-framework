@@ -177,24 +177,25 @@ umfMemoryProviderPutIPCHandle(umf_memory_provider_handle_t hProvider,
 /// @param hProvider [in] handle to the memory provider.
 /// @param providerIpcData [in] pointer to the IPC opaque data structure.
 /// @param ptr [out] pointer to the memory to be used in the current process.
+/// @param size [out] size of the memory pointed by ptr.
 /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
 ///         UMF_RESULT_ERROR_INVALID_ARGUMENT if providerIpcData cannot be handled by the provider.
 ///         UMF_RESULT_ERROR_NOT_SUPPORTED if IPC functionality is not supported by this provider.
 umf_result_t
 umfMemoryProviderOpenIPCHandle(umf_memory_provider_handle_t hProvider,
-                               void *providerIpcData, void **ptr);
+                               void *providerIpcData, void **ptr, size_t *size);
 
 ///
 /// @brief Close an IPC memory handle.
 /// @param hProvider [in] handle to the memory provider.
+/// @param providerIpcData [in] pointer to the IPC opaque data structure.
 /// @param ptr [in] pointer returned by umfMemoryProviderOpenIPCHandle function.
-/// @param size [in] size of the memory address range.
 /// @return UMF_RESULT_SUCCESS on success or appropriate error code on failure.
 ///         UMF_RESULT_ERROR_INVALID_ARGUMENT if invalid \p hProvider or \p ptr are passed.
 ///         UMF_RESULT_ERROR_NOT_SUPPORTED if IPC functionality is not supported by this provider.
 umf_result_t
 umfMemoryProviderCloseIPCHandle(umf_memory_provider_handle_t hProvider,
-                                void *ptr, size_t size);
+                                void *providerIpcData, void *ptr);
 
 ///
 /// @brief Retrieve name of a given memory \p hProvider.
