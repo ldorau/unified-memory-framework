@@ -70,3 +70,35 @@ else()
             "UMF_BUILD_LEVEL_ZERO_PROVIDER and UMF_BUILD_LIBUMF_POOL_DISJOINT "
             "to be turned ON - skipping")
 endif()
+
+if(LINUX)
+    set(EXAMPLE_NAME umf_example_ipc_shared_memory)
+
+    foreach(loop_var IN ITEMS "server" "client")
+        set(EX_NAME ${EXAMPLE_NAME}_${loop_var})
+        add_umf_executable(
+            NAME ${EX_NAME}
+            SRCS basic/ipc_shared_memory_${loop_var}.c
+            LIBS umf)
+
+        target_include_directories(
+            ${EX_NAME} PRIVATE ${UMF_CMAKE_SOURCE_DIR}/src/utils
+                               ${UMF_CMAKE_SOURCE_DIR}/include)
+
+        target_link_directories(${EX_NAME} PRIVATE ${LIBHWLOC_LIBRARY_DIRS})
+    endforeach(loop_var)
+
+    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/basic/ipc_shared_memory.sh
+         DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+    add_test(
+        NAME ${EXAMPLE_NAME}
+        COMMAND ipc_shared_memory.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    set_tests_properties(${EXAMPLE_NAME} PROPERTIES LABELS "example")
+else()
+    message(
+        STATUS "IPC shared memory example is supported on Linux only - skipping"
+    )
+endif()
