@@ -7,9 +7,13 @@
 
 #include <assert.h>
 #include <dlfcn.h>
+#include <numa.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #define SIZE_ALLOC 4096
 
@@ -422,6 +426,22 @@ static int run_test(int wrong_dtor_order) {
     return 0;
 }
 
+int is_HMAT_supported() {
+    struct stat info;
+    const int MAXNODE_ID = numa_max_node();
+    for (int node_id = 0; node_id <= MAXNODE_ID; ++node_id) {
+        if (numa_bitmask_isbitset(numa_nodes_ptr, node_id)) {
+            char access_path[256];
+            sprintf(access_path, "/sys/devices/system/node/node%d/access0/",
+                    node_id);
+            if (!stat(access_path, &info)) {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 int main(void) {
 
     // The libtbbmalloc.so.2 library is required to run this test,
@@ -434,6 +454,9 @@ int main(void) {
     }
 
     dlclose(tbb);
+
+    fprintf(stderr, "is_HMAT_supported?: %s\n",
+            (is_HMAT_supported()) ? "YES" : "NO");
 
     if (run_test(0)) { // correct order of destructors
         return -1;

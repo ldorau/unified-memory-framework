@@ -189,7 +189,7 @@ static umf_result_t query_attribute_value(void *srcMemoryTarget,
                                           memattr_type_t type) {
     hwloc_topology_t topology = umfGetTopology();
     if (!topology) {
-        LOG_ERR("umfGetTopology() failed");
+        LOG_ERR("Retrieving cached topology failed");
         return UMF_RESULT_ERROR_NOT_SUPPORTED;
     }
 
@@ -213,7 +213,8 @@ static umf_result_t query_attribute_value(void *srcMemoryTarget,
     if (!hwloc_bitmap_intersects(srcNumaNode->cpuset, dstNumaNode->cpuset)) {
         // Since we want to skip such query, we return the worst possible
         // value for given memory attribute.
-        LOG_ERR("hwloc_bitmap_intersects() failed - memattr_get_worst_value()");
+        LOG_DEBUG(
+            "hwloc_bitmap_intersects() failed - memattr_get_worst_value()");
         *value = memattr_get_worst_value(type);
         return UMF_RESULT_SUCCESS;
     }
