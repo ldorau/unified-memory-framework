@@ -90,9 +90,9 @@ static void umfMemspaceHighestBandwidthInit(void) {
     umf_result_t ret =
         umfMemspaceHighestBandwidthCreate(&UMF_MEMSPACE_HIGHEST_BANDWIDTH);
     if (ret != UMF_RESULT_SUCCESS) {
-        LOG_ERR(
-            "Creating the highest bandwidth memspace failed with a %u error\n",
-            ret);
+        LOG_ERR("Creating the highest bandwidth memspace failed with the "
+                "error: %u\n",
+                ret);
         assert(ret == UMF_RESULT_ERROR_NOT_SUPPORTED);
     }
 }
