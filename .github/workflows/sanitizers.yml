@@ -1,7 +1,7 @@
 # Check code with compilers' sanitizers
 name: Sanitizers
 
-on: workflow_call
+on: [push, pull_request]
 
 env:
   BUILD_DIR : "${{github.workspace}}/build/"
