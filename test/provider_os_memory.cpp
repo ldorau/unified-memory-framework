@@ -86,7 +86,12 @@ static void test_alloc_free_success(umf_memory_provider_handle_t provider,
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ptr, nullptr);
 
+    fprintf(
+        stderr,
+        "test_alloc_free_success(): ptr = %p, alignment = %zu, size = %zu\n",
+        ptr, alignment, size);
     memset(ptr, 0xFF, size);
+    memset(ptr, 0, size);
 
     if (purge == PURGE_LAZY) {
         umf_result = umfMemoryProviderPurgeLazy(provider, ptr, size);
