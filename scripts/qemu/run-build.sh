@@ -9,7 +9,17 @@ repo=$1
 branch=$2
 
 echo password | sudo -Sk apt update
-echo password | sudo -Sk apt install -y git cmake gcc g++ numactl libnuma-dev libhwloc-dev libjemalloc-dev libtbb-dev pkg-config valgrind hwloc
+echo password | sudo -Sk apt install -y git cmake gcc g++ numactl libnuma-dev libhwloc-dev libjemalloc-dev libtbb-dev pkg-config valgrind hwloc ndctl
+
+set -x
+ls -al /dev/nmem* || true
+echo password | sudo -Sk dmesg | grep -e persistent || true
+echo password | sudo -Sk ndctl list --dimm -i
+echo password | sudo -Sk ndctl list --regions
+echo password | sudo -Sk ndctl list --namespaces --bus=all --region=all
+echo password | sudo -Sk ndctl create-namespace --mode=devdax --align=2M --force || ( echo password | sudo -Sk ndctl create-namespace --mode=raw || true )
+echo password | sudo -Sk ndctl list --namespaces --bus=all --region=all
+ls -al /dev/dax*
 
 git clone $repo umf
 cd umf

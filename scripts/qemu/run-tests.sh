@@ -13,6 +13,16 @@ echo password | sudo bash -c "echo 0 > /proc/sys/kernel/yama/ptrace_scope"
 
 numactl -H
 
+set -x
+ls -al /dev/nmem* || true
+echo password | sudo -Sk ndctl list --dimm -i
+echo password | sudo -Sk ndctl list --regions
+echo password | sudo -Sk ndctl enable-region region0
+echo password | sudo -Sk ndctl list --namespaces --bus=all --region=all
+echo password | sudo -Sk ndctl create-namespace -v --mode=devdax --region=region0 --size=4G --align=2M --force || true
+echo password | sudo -Sk ndctl list --namespaces --bus=all --region=all
+ls -al /dev/dax*
+
 cd umf/build
 ctest --verbose
 

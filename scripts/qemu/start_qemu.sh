@@ -16,8 +16,10 @@ else
     hmat="off"
 fi
 
+#    -kernel -append "memmap=1G!1G" \
+
 sudo qemu-system-x86_64 \
-    -drive file=./ubuntu-23.04-server-cloudimg-amd64.img,format=qcow2,index=0,media=disk,id=hd \
+    -drive file=./ubuntu-23.04-server-cloudimg-amd64.img,format=qcow2,index=1,media=disk,id=hd \
     -cdrom ./ubuntu-cloud-init.iso \
     -machine q35,usb=off,hmat=$hmat \
     -enable-kvm \

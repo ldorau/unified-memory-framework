@@ -96,6 +96,7 @@ jobs:
     - name: Run tests
       run: |
         for config_file in scripts/qemu/configs/*.xml; do
+          echo "Runnung QEMU config_file: $config_file"
           config_name=$(basename $config_file .xml)
 
           echo testing $config_name
