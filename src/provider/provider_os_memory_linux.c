@@ -178,3 +178,7 @@ void *os_devdax_mmap(void *hint_addr, size_t length, int prot, int fd) {
 
     return NULL;
 }
+
+int os_fallocate(int fd, long offset, long len) {
+    return posix_fallocate(fd, offset, len);
+}

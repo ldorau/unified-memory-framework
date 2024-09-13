@@ -22,6 +22,9 @@ extern "C" {
 // Needed for CI
 #define TEST_SKIP_ERROR_CODE 125
 
+#define ASSERT_IS_ALIGNED(ptr, alignment)                                      \
+    ASSERT_EQ(((uintptr_t)ptr % alignment), 0)
+
 static inline void UT_FATAL(const char *format, ...) {
     va_list args_list;
     va_start(args_list, format);
