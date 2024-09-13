@@ -10,6 +10,7 @@
 #include <sys/mman.h>
 
 #include <umf/base.h>
+#include <umf/memory_provider.h>
 
 umf_result_t
 utils_translate_mem_visibility_flag(umf_memory_visibility_t in_flag,
