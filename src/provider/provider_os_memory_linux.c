@@ -18,19 +18,6 @@
 #include "provider_os_memory_internal.h"
 #include "utils_log.h"
 
-umf_result_t os_translate_mem_visibility_flag(umf_memory_visibility_t in_flag,
-                                              unsigned *out_flag) {
-    switch (in_flag) {
-    case UMF_MEM_MAP_PRIVATE:
-        *out_flag = MAP_PRIVATE;
-        return UMF_RESULT_SUCCESS;
-    case UMF_MEM_MAP_SHARED:
-        *out_flag = MAP_SHARED;
-        return UMF_RESULT_SUCCESS;
-    }
-    return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-}
-
 // create a shared memory file
 int os_shm_create(const char *shm_name, size_t size) {
     if (shm_name == NULL) {
@@ -134,7 +121,7 @@ int os_create_anonymous_fd(void) {
     return fd;
 }
 
-int os_get_file_size(int fd, size_t *size) {
+int utils_get_file_size(int fd, size_t *size) {
     struct stat statbuf;
     int ret = fstat(fd, &statbuf);
     if (ret) {
@@ -155,30 +142,6 @@ int os_set_file_size(int fd, size_t size) {
     return ret;
 }
 
-/*
- * MMap a /dev/dax device.
- * First try to mmap with (MAP_SHARED_VALIDATE | MAP_SYNC) flags
- * which allows flushing from the user-space. If MAP_SYNC fails
- * try to mmap with MAP_SHARED flag (without MAP_SYNC).
- */
-void *os_devdax_mmap(void *hint_addr, size_t length, int prot, int fd) {
-    void *ptr =
-        os_mmap(hint_addr, length, prot, MAP_SHARED_VALIDATE | MAP_SYNC, fd, 0);
-    if (ptr) {
-        LOG_DEBUG(
-            "devdax mapped with the (MAP_SHARED_VALIDATE | MAP_SYNC) flags");
-        return ptr;
-    }
-
-    ptr = os_mmap(hint_addr, length, prot, MAP_SHARED, fd, 0);
-    if (ptr) {
-        LOG_DEBUG("devdax mapped with the MAP_SHARED flag");
-        return ptr;
-    }
-
-    return NULL;
-}
-
-int os_fallocate(int fd, long offset, long len) {
+int utils_fallocate(int fd, long offset, long len) {
     return posix_fallocate(fd, offset, len);
 }

@@ -134,31 +134,6 @@ err_free_list:
     return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 }
 
-umf_result_t os_translate_flags(unsigned in_flags, unsigned max,
-                                umf_result_t (*translate_flag)(unsigned,
-                                                               unsigned *),
-                                unsigned *out_flags) {
-    unsigned out_f = 0;
-    for (unsigned n = 1; n < max; n <<= 1) {
-        if (in_flags & n) {
-            unsigned flag;
-            umf_result_t result = translate_flag(n, &flag);
-            if (result != UMF_RESULT_SUCCESS) {
-                return result;
-            }
-            out_f |= flag;
-            in_flags &= ~n; // clear this bit
-        }
-    }
-
-    if (in_flags != 0) {
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    *out_flags = out_f;
-    return UMF_RESULT_SUCCESS;
-}
-
 static umf_result_t validate_numa_mode(umf_numa_mode_t mode,
                                        int nodemaskEmpty) {
     switch (mode) {
@@ -413,15 +388,15 @@ static umf_result_t translate_params(umf_os_memory_provider_params_t *in_params,
                                      os_memory_provider_t *provider) {
     umf_result_t result;
 
-    result = os_translate_mem_protection_flags(in_params->protection,
-                                               &provider->protection);
+    result = utils_translate_mem_protection_flags(in_params->protection,
+                                                  &provider->protection);
     if (result != UMF_RESULT_SUCCESS) {
         LOG_ERR("incorrect memory protection flags: %u", in_params->protection);
         return result;
     }
 
-    result = os_translate_mem_visibility_flag(in_params->visibility,
-                                              &provider->visibility);
+    result = utils_translate_mem_visibility_flag(in_params->visibility,
+                                                 &provider->visibility);
     if (result != UMF_RESULT_SUCCESS) {
         LOG_ERR("incorrect memory visibility flag: %u", in_params->visibility);
         return result;
@@ -634,11 +609,11 @@ static inline void assert_is_page_aligned(uintptr_t ptr, size_t page_size) {
     (void)page_size; // unused in Release build
 }
 
-static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
-                           size_t page_size, int prot, int flag, int fd,
-                           size_t max_fd_size, os_mutex_t *lock_fd,
-                           void **out_addr, size_t *fd_size,
-                           size_t *fd_offset) {
+static int utils_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
+                              size_t page_size, int prot, int flag, int fd,
+                              size_t max_fd_size, os_mutex_t *lock_fd,
+                              void **out_addr, size_t *fd_size,
+                              size_t *fd_offset) {
     assert(out_addr);
 
     size_t extended_length = length;
@@ -670,7 +645,8 @@ static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
         util_mutex_unlock(lock_fd);
     }
 
-    void *ptr = os_mmap(hint_addr, extended_length, prot, flag, fd, *fd_offset);
+    void *ptr =
+        utils_mmap(hint_addr, extended_length, prot, flag, fd, *fd_offset);
     if (ptr == NULL) {
         LOG_PDEBUG("memory mapping failed");
         return -1;
@@ -689,7 +665,7 @@ static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
 
         size_t head_len = aligned_addr - addr;
         if (head_len > 0) {
-            os_munmap(ptr, head_len);
+            utils_munmap(ptr, head_len);
         }
 
         // tail address has to page-aligned
@@ -703,7 +679,7 @@ static int os_mmap_aligned(void *hint_addr, size_t length, size_t alignment,
 
         size_t tail_len = (addr + extended_length) - tail;
         if (tail_len > 0) {
-            os_munmap((void *)tail, tail_len);
+            utils_munmap((void *)tail, tail_len);
         }
 
         *out_addr = (void *)aligned_addr;
@@ -917,7 +893,7 @@ static umf_result_t os_alloc(void *provider, size_t size, size_t alignment,
 
     void *addr = NULL;
     errno = 0;
-    ret = os_mmap_aligned(
+    ret = utils_mmap_aligned(
         NULL, size, alignment, page_size, os_provider->protection,
         os_provider->visibility, os_provider->fd, os_provider->max_size_fd,
         &os_provider->lock_fd, &addr, &os_provider->size_fd, &fd_offset);
@@ -984,7 +960,7 @@ static umf_result_t os_alloc(void *provider, size_t size, size_t alignment,
     return UMF_RESULT_SUCCESS;
 
 err_unmap:
-    (void)os_munmap(addr, size);
+    (void)utils_munmap(addr, size);
     return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
 }
 
@@ -1004,7 +980,7 @@ static umf_result_t os_free(void *provider, void *ptr, size_t size) {
     }
 
     errno = 0;
-    int ret = os_munmap(ptr, size);
+    int ret = utils_munmap(ptr, size);
     if (ret) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_FREE_FAILED, errno);
         LOG_PERR("memory deallocation failed");
@@ -1044,8 +1020,8 @@ static void os_get_last_native_error(void *provider, const char **ppMessage,
     memcpy(TLS_last_native_error.msg_buff + pos, msg, len + 1);
     pos += len;
 
-    os_strerror(TLS_last_native_error.errno_value,
-                TLS_last_native_error.msg_buff + pos, TLS_MSG_BUF_LEN - pos);
+    utils_strerror(TLS_last_native_error.errno_value,
+                   TLS_last_native_error.msg_buff + pos, TLS_MSG_BUF_LEN - pos);
 
     *ppMessage = TLS_last_native_error.msg_buff;
 }
@@ -1058,7 +1034,7 @@ static umf_result_t os_get_recommended_page_size(void *provider, size_t size,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    *page_size = os_get_page_size();
+    *page_size = util_get_page_size();
 
     return UMF_RESULT_SUCCESS;
 }
@@ -1076,7 +1052,7 @@ static umf_result_t os_purge_lazy(void *provider, void *ptr, size_t size) {
     }
 
     errno = 0;
-    if (os_purge(ptr, size, UMF_PURGE_LAZY)) {
+    if (utils_purge(ptr, size, UMF_PURGE_LAZY)) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_PURGE_LAZY_FAILED,
                                    errno);
         LOG_PERR("lazy purging failed");
@@ -1092,7 +1068,7 @@ static umf_result_t os_purge_force(void *provider, void *ptr, size_t size) {
     }
 
     errno = 0;
-    if (os_purge(ptr, size, UMF_PURGE_FORCE)) {
+    if (utils_purge(ptr, size, UMF_PURGE_FORCE)) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_PURGE_FORCE_FAILED,
                                    errno);
         LOG_PERR("force purging failed");
@@ -1274,8 +1250,8 @@ static umf_result_t os_open_ipc_handle(void *provider, void *providerIpcData,
         }
     }
 
-    *ptr = os_mmap(NULL, os_ipc_data->size, os_provider->protection,
-                   os_provider->visibility, fd, os_ipc_data->fd_offset);
+    *ptr = utils_mmap(NULL, os_ipc_data->size, os_provider->protection,
+                      os_provider->visibility, fd, os_ipc_data->fd_offset);
     if (*ptr == NULL) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_ALLOC_FAILED, errno);
         LOG_PERR("memory mapping failed");
@@ -1294,7 +1270,7 @@ static umf_result_t os_close_ipc_handle(void *provider, void *ptr,
     }
 
     errno = 0;
-    int ret = os_munmap(ptr, size);
+    int ret = utils_munmap(ptr, size);
     // ignore error when size == 0
     if (ret && (size > 0)) {
         os_store_last_native_error(UMF_OS_RESULT_ERROR_FREE_FAILED, errno);

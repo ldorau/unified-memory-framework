@@ -8,8 +8,6 @@
 #ifndef UMF_DEVDAX_MEMORY_PROVIDER_INTERNAL_H
 #define UMF_DEVDAX_MEMORY_PROVIDER_INTERNAL_H
 
-#include <umf/providers/provider_os_memory.h>
-
 #include "utils_concurrency.h"
 
 #ifdef __cplusplus
