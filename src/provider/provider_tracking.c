@@ -48,13 +48,14 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
     int ret = critnib_insert(hTracker->map, (uintptr_t)ptr, value, 0);
 
     if (ret == 0) {
-        LOG_DEBUG("memory region is added, tracker=%p, ptr=%p, size=%zu",
-                  (void *)hTracker, ptr, size);
+        LOG_DEBUG(
+            "memory region is added, tracker=%p, ptr=%p, pool=%p, size=%zu",
+            (void *)hTracker, ptr, (void *)pool, size);
         return UMF_RESULT_SUCCESS;
     }
 
-    LOG_ERR("failed to insert tracker value, ret=%d, ptr=%p, size=%zu", ret,
-            ptr, size);
+    LOG_ERR("failed to insert tracker value, ret=%d, ptr=%p, pool=%p, size=%zu",
+            ret, ptr, (void *)pool, size);
 
     umf_ba_free(hTracker->tracker_allocator, value);
 
@@ -330,6 +331,8 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
 
 err:
     utils_mutex_unlock(&provider->hTracker->splitMergeMutex);
+    assert(0);
+
 err_lock:
     umf_ba_free(provider->hTracker->tracker_allocator, mergedValue);
     return ret;
