@@ -1724,6 +1724,58 @@ err_mutex_unlock:
     return umf_result;
 }
 
+static umf_result_t coarse_memory_provider_get_ipc_handle_size(void *provider,
+                                                               size_t *size) {
+    if (provider == NULL || size == NULL) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
+static umf_result_t
+coarse_memory_provider_get_ipc_handle(void *provider, const void *ptr,
+                                      size_t size, void *providerIpcData) {
+    if (provider == NULL || ptr == NULL || providerIpcData == NULL) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    (void)size; // unused
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
+static umf_result_t
+coarse_memory_provider_put_ipc_handle(void *provider, void *providerIpcData) {
+    if (provider == NULL || providerIpcData == NULL) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
+static umf_result_t
+coarse_memory_provider_open_ipc_handle(void *provider, void *providerIpcData,
+                                       void **ptr) {
+    if (provider == NULL || providerIpcData == NULL || ptr == NULL) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
+static umf_result_t coarse_memory_provider_close_ipc_handle(void *provider,
+                                                            void *ptr,
+                                                            size_t size) {
+    if (provider == NULL || ptr == NULL) {
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    (void)size; // unused
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
 umf_memory_provider_ops_t UMF_COARSE_MEMORY_PROVIDER_OPS = {
     .version = UMF_VERSION_CURRENT,
     .initialize = coarse_memory_provider_initialize,
@@ -1739,14 +1791,11 @@ umf_memory_provider_ops_t UMF_COARSE_MEMORY_PROVIDER_OPS = {
     .ext.purge_force = coarse_memory_provider_purge_force,
     .ext.allocation_merge = coarse_memory_provider_allocation_merge,
     .ext.allocation_split = coarse_memory_provider_allocation_split,
-    // TODO
-    /*
     .ipc.get_ipc_handle_size = coarse_memory_provider_get_ipc_handle_size,
     .ipc.get_ipc_handle = coarse_memory_provider_get_ipc_handle,
     .ipc.put_ipc_handle = coarse_memory_provider_put_ipc_handle,
     .ipc.open_ipc_handle = coarse_memory_provider_open_ipc_handle,
     .ipc.close_ipc_handle = coarse_memory_provider_close_ipc_handle,
-    */
 };
 
 umf_memory_provider_ops_t *umfCoarseMemoryProviderOps(void) {
