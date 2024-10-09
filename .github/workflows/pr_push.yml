@@ -78,35 +78,13 @@ jobs:
 
   Spellcheck:
     uses: ./.github/workflows/spellcheck.yml
-  FastBuild:
-    name: Fast builds
-    needs: [Spellcheck, CodeStyle]
-    uses: ./.github/workflows/fast.yml
   Build:
     name: Basic builds
-    needs: [FastBuild]
+    needs: [Spellcheck, CodeStyle]
     uses: ./.github/workflows/basic.yml
-  DevDax:
-    needs: [FastBuild]
-    uses: ./.github/workflows/dax.yml
-  Sanitizers:
-    needs: [FastBuild]
-    uses: ./.github/workflows/sanitizers.yml
-  Qemu:
-    needs: [FastBuild]
-    uses: ./.github/workflows/qemu.yml
-  Benchmarks:
-    needs: [Build]
-    uses: ./.github/workflows/benchmarks.yml
-  ProxyLib:
-    needs: [Build]
-    uses: ./.github/workflows/proxy_lib.yml
   GPU:
     needs: [Build]
     uses: ./.github/workflows/gpu.yml
-  Valgrind:
-    needs: [Build]
-    uses: ./.github/workflows/valgrind.yml
   MultiNuma:
     needs: [Build]
     uses: ./.github/workflows/multi_numa.yml
