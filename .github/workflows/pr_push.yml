@@ -92,5 +92,5 @@ jobs:
     needs: [Spellcheck, CodeStyle]
     uses: ./.github/workflows/qemu.yml
   Coverage:
-    needs: [Spellcheck, CodeStyle, Build]
+    needs: [Build, Qemu]
     uses: ./.github/workflows/coverage.yml
