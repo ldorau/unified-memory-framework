@@ -61,21 +61,12 @@ jobs:
     name: Basic builds
     needs: [FastBuild]
     uses: ./.github/workflows/basic.yml
-  DevDax:
-    needs: [FastBuild]
-    uses: ./.github/workflows/dax.yml
   Qemu:
     needs: [FastBuild]
     uses: ./.github/workflows/qemu.yml
   ProxyLib:
     needs: [FastBuild]
     uses: ./.github/workflows/proxy_lib.yml
-  GPU:
-    needs: [FastBuild]
-    uses: ./.github/workflows/gpu.yml
-  MultiNuma:
-    needs: [FastBuild]
-    uses: ./.github/workflows/multi_numa.yml
   Coverage:
-    needs: [Build, DevDax, GPU, MultiNuma, Qemu, ProxyLib]
+    needs: [Build, Qemu, ProxyLib]
     uses: ./.github/workflows/coverage.yml
