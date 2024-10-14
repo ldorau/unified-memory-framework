@@ -51,31 +51,6 @@ jobs:
     - name: Check Python formatting
       run: cmake --build build --target black-format-check
 
-  DocsBuild:
-    name: Build docs
-    runs-on: ${{ github.repository_owner == 'oneapi-src' && 'intel-ubuntu-22.04' || 'ubuntu-latest' }}
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
-      with:
-        fetch-depth: 0
-
-    - name: Install doxygen
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y doxygen
-
-    - name: Install pip requirements
-      run: python3 -m pip install -r third_party/requirements.txt
-
-    - name: Setup PATH for python
-      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-    - name: Build the documentation
-      working-directory: scripts
-      run: python3 generate_docs.py
-
   Spellcheck:
     uses: ./.github/workflows/spellcheck.yml
   FastBuild:
@@ -89,26 +64,17 @@ jobs:
   DevDax:
     needs: [FastBuild]
     uses: ./.github/workflows/dax.yml
-  Sanitizers:
-    needs: [FastBuild]
-    uses: ./.github/workflows/sanitizers.yml
   Qemu:
     needs: [FastBuild]
     uses: ./.github/workflows/qemu.yml
-  Benchmarks:
-    needs: [Build]
-    uses: ./.github/workflows/benchmarks.yml
   ProxyLib:
-    needs: [Build]
+    needs: [FastBuild]
     uses: ./.github/workflows/proxy_lib.yml
   GPU:
-    needs: [Build]
+    needs: [FastBuild]
     uses: ./.github/workflows/gpu.yml
-  Valgrind:
-    needs: [Build]
-    uses: ./.github/workflows/valgrind.yml
   MultiNuma:
-    needs: [Build]
+    needs: [FastBuild]
     uses: ./.github/workflows/multi_numa.yml
   Coverage:
     needs: [Build, DevDax, GPU, MultiNuma, Qemu, ProxyLib]
