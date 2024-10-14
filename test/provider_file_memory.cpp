@@ -6,6 +6,8 @@
 
 #include "cpp_helpers.hpp"
 #include "test_helpers.h"
+#include "test_helpers.hpp"
+
 #ifndef _WIN32
 #include "test_helpers_linux.h"
 #endif
@@ -17,12 +19,6 @@ using umf_test::test;
 
 #define FILE_PATH ((char *)"tmp_file")
 #define INVALID_PTR ((void *)0x01)
-
-typedef enum purge_t {
-    PURGE_NONE = 0,
-    PURGE_LAZY = 1,
-    PURGE_FORCE = 2,
-} purge_t;
 
 static const char *Native_error_str[] = {
     "success",                    // UMF_FILE_RESULT_SUCCESS
@@ -76,30 +72,6 @@ struct FileProviderParamsDefault
 };
 
 struct FileProviderParamsShared : FileProviderParamsDefault {};
-
-static void test_alloc_free_success(umf_memory_provider_handle_t provider,
-                                    size_t size, size_t alignment,
-                                    purge_t purge) {
-    void *ptr = nullptr;
-
-    umf_result_t umf_result =
-        umfMemoryProviderAlloc(provider, size, alignment, &ptr);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(ptr, nullptr);
-
-    memset(ptr, 0xFF, size);
-
-    if (purge == PURGE_LAZY) {
-        umf_result = umfMemoryProviderPurgeLazy(provider, ptr, size);
-        ASSERT_EQ(umf_result, UMF_RESULT_ERROR_NOT_SUPPORTED);
-    } else if (purge == PURGE_FORCE) {
-        umf_result = umfMemoryProviderPurgeForce(provider, ptr, size);
-        ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    }
-
-    umf_result = umfMemoryProviderFree(provider, ptr, size);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_NOT_SUPPORTED);
-}
 
 static void verify_last_native_error(umf_memory_provider_handle_t provider,
                                      int32_t err) {
@@ -161,7 +133,7 @@ TEST_F(test, test_if_mapped_with_MAP_SYNC) {
     ASSERT_EQ(flag_found, true);
 }
 
-// positive tests using test_alloc_free_success
+// positive tests using test_alloc_success_not_free
 
 umf_file_memory_provider_params_t file_params_default =
     umfFileMemoryProviderParamsDefault(FILE_PATH);
@@ -184,20 +156,20 @@ INSTANTIATE_TEST_SUITE_P(fileProviderTest, FileProviderParamsDefault,
 TEST_P(FileProviderParamsDefault, create_destroy) {}
 
 TEST_P(FileProviderParamsDefault, alloc_page64_align_0) {
-    test_alloc_free_success(provider.get(), page_plus_64, 0, PURGE_NONE);
+    test_alloc_success_not_free(provider.get(), page_plus_64, 0, PURGE_NONE);
 }
 
 TEST_P(FileProviderParamsDefault, alloc_page64_align_page_div_2) {
-    test_alloc_free_success(provider.get(), page_plus_64, page_size / 2,
-                            PURGE_NONE);
+    test_alloc_success_not_free(provider.get(), page_plus_64, page_size / 2,
+                                PURGE_NONE);
 }
 
 TEST_P(FileProviderParamsDefault, purge_lazy) {
-    test_alloc_free_success(provider.get(), page_plus_64, 0, PURGE_LAZY);
+    test_alloc_success_not_free(provider.get(), page_plus_64, 0, PURGE_LAZY);
 }
 
 TEST_P(FileProviderParamsDefault, purge_force) {
-    test_alloc_free_success(provider.get(), page_plus_64, 0, PURGE_FORCE);
+    test_alloc_success_not_free(provider.get(), page_plus_64, 0, PURGE_FORCE);
 }
 
 // negative tests using test_alloc_failure

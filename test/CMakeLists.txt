@@ -201,7 +201,7 @@ if(LINUX AND (NOT UMF_DISABLE_HWLOC)) # OS-specific functions are implemented
 
     add_umf_test(
         NAME provider_os_memory
-        SRCS provider_os_memory.cpp
+        SRCS provider_os_memory.cpp common/test_helpers.cpp
         LIBS ${UMF_UTILS_FOR_TEST})
     if(UMF_BUILD_LIBUMF_POOL_DISJOINT)
         target_compile_definitions(umf_test-provider_os_memory
@@ -251,11 +251,11 @@ if(LINUX AND (NOT UMF_DISABLE_HWLOC)) # OS-specific functions are implemented
         LIBS ${LIBNUMA_LIBRARIES} ${LIBHWLOC_LIBRARIES})
     add_umf_test(
         NAME provider_devdax_memory
-        SRCS provider_devdax_memory.cpp
+        SRCS provider_devdax_memory.cpp common/test_helpers.cpp
         LIBS ${UMF_UTILS_FOR_TEST})
     add_umf_test(
         NAME provider_file_memory
-        SRCS provider_file_memory.cpp
+        SRCS provider_file_memory.cpp common/test_helpers.cpp
         LIBS ${UMF_UTILS_FOR_TEST})
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UMF_BUILD_FUZZTESTS)
         add_subdirectory(fuzz)

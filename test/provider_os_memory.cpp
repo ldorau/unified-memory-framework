@@ -7,6 +7,7 @@
 #include "cpp_helpers.hpp"
 #include "ipcFixtures.hpp"
 #include "test_helpers.h"
+#include "test_helpers.hpp"
 
 #include <umf/memory_provider.h>
 #include <umf/pools/pool_disjoint.h>
@@ -15,12 +16,6 @@
 using umf_test::test;
 
 #define INVALID_PTR ((void *)0x01)
-
-typedef enum purge_t {
-    PURGE_NONE = 0,
-    PURGE_LAZY = 1,
-    PURGE_FORCE = 2,
-} purge_t;
 
 static const char *Native_error_str[] = {
     "success",                          // UMF_OS_RESULT_SUCCESS
@@ -76,30 +71,6 @@ struct umfProviderTest
     size_t page_size;
     size_t page_plus_64;
 };
-
-static void test_alloc_free_success(umf_memory_provider_handle_t provider,
-                                    size_t size, size_t alignment,
-                                    purge_t purge) {
-    void *ptr = nullptr;
-
-    umf_result_t umf_result =
-        umfMemoryProviderAlloc(provider, size, alignment, &ptr);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(ptr, nullptr);
-
-    memset(ptr, 0xFF, size);
-
-    if (purge == PURGE_LAZY) {
-        umf_result = umfMemoryProviderPurgeLazy(provider, ptr, size);
-        ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    } else if (purge == PURGE_FORCE) {
-        umf_result = umfMemoryProviderPurgeForce(provider, ptr, size);
-        ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    }
-
-    umf_result = umfMemoryProviderFree(provider, ptr, size);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-}
 
 static void verify_last_native_error(umf_memory_provider_handle_t provider,
                                      int32_t err) {
