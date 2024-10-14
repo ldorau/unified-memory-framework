@@ -263,16 +263,33 @@ static umf_result_t file_mmap_aligned(file_memory_provider_t *file_provider,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT; // arithmetic overflow
     }
 
-    if (offset_fd + extended_size > size_fd) {
-        if (utils_fallocate(fd, offset_fd, extended_size)) {
+    // offset_fd has to be also page-aligned since it is the offset of mmap()
+    size_t aligned_offset_fd = offset_fd;
+    rest = aligned_offset_fd & (page_size - 1);
+    if (rest) {
+        aligned_offset_fd += page_size - rest;
+    }
+    if (aligned_offset_fd < offset_fd) {
+        LOG_ERR("arithmetic overflow of file offset");
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT; // arithmetic overflow
+    }
+
+    if (aligned_offset_fd + extended_size > size_fd) {
+        if (utils_fallocate(fd, offset_fd,
+                            extended_size + aligned_offset_fd - offset_fd)) {
             LOG_ERR("cannot grow the file size from %zu to %zu", size_fd,
-                    offset_fd + extended_size);
+                    aligned_offset_fd + extended_size);
             return UMF_RESULT_ERROR_UNKNOWN;
         }
 
         LOG_DEBUG("file size grown from %zu to %zu", size_fd,
-                  offset_fd + extended_size);
-        file_provider->size_fd = size_fd = offset_fd + extended_size;
+                  aligned_offset_fd + extended_size);
+        file_provider->size_fd = size_fd = aligned_offset_fd + extended_size;
+    }
+
+    if (aligned_offset_fd > offset_fd) {
+        file_provider->offset_fd = aligned_offset_fd;
+        offset_fd = aligned_offset_fd;
     }
 
     ASSERT_IS_ALIGNED(extended_size, page_size);
@@ -344,7 +361,7 @@ static umf_result_t file_alloc_aligned(file_memory_provider_t *file_provider,
     }
 
     size_t old_offset_mmap = file_provider->offset_mmap;
-    file_provider->offset_mmap = new_offset_mmap;
+    file_provider->offset_mmap = new_offset_mmap + size;
     *alloc_offset_fd =
         file_provider->offset_fd + new_offset_mmap - old_offset_mmap;
     file_provider->offset_fd = *alloc_offset_fd + size;
