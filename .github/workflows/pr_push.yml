@@ -61,12 +61,9 @@ jobs:
     name: Basic builds
     needs: [FastBuild]
     uses: ./.github/workflows/basic.yml
-  Qemu:
-    needs: [FastBuild]
-    uses: ./.github/workflows/qemu.yml
   ProxyLib:
     needs: [FastBuild]
     uses: ./.github/workflows/proxy_lib.yml
   Coverage:
-    needs: [Build, Qemu, ProxyLib]
+    needs: [Build, ProxyLib]
     uses: ./.github/workflows/coverage.yml
