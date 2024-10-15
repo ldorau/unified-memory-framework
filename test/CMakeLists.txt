@@ -182,6 +182,13 @@ if(UMF_BUILD_LIBUMF_POOL_JEMALLOC AND (NOT UMF_DISABLE_HWLOC))
         NAME jemalloc_pool
         SRCS pools/jemalloc_pool.cpp malloc_compliance_tests.cpp
         LIBS jemalloc_pool)
+    # This tests requires Linux-only file memory provider.
+    if(LINUX)
+        add_umf_test(
+            NAME jemalloc_pool_coarse_file
+            SRCS pools/jemalloc_pool_coarse_file.cpp malloc_compliance_tests.cpp
+            LIBS jemalloc_pool)
+    endif()
 endif()
 
 if(UMF_POOL_SCALABLE_ENABLED AND (NOT UMF_DISABLE_HWLOC))
