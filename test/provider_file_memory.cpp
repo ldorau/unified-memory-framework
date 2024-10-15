@@ -183,6 +183,33 @@ INSTANTIATE_TEST_SUITE_P(fileProviderTest, FileProviderParamsDefault,
 
 TEST_P(FileProviderParamsDefault, create_destroy) {}
 
+TEST_P(FileProviderParamsDefault, two_allocations) {
+    umf_result_t umf_result;
+    void *ptr = nullptr;
+    void *ptr2 = nullptr;
+    size_t size = page_plus_64;
+    size_t alignment = page_size;
+
+    umf_result = umfMemoryProviderAlloc(provider.get(), size, alignment, &ptr);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+    ASSERT_NE(ptr, nullptr);
+
+    umf_result = umfMemoryProviderAlloc(provider.get(), size, alignment, &ptr2);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+    ASSERT_NE(ptr, nullptr);
+
+    ASSERT_NE(ptr, ptr2);
+
+    memset(ptr, 0xFF, size);
+    memset(ptr2, 0xFF, size);
+
+    umf_result = umfMemoryProviderFree(provider.get(), ptr, size);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+
+    umf_result = umfMemoryProviderFree(provider.get(), ptr2, size);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+}
+
 TEST_P(FileProviderParamsDefault, alloc_page64_align_0) {
     test_alloc_free_success(provider.get(), page_plus_64, 0, PURGE_NONE);
 }
