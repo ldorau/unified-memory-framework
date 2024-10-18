@@ -318,6 +318,22 @@ static block_t *node_list_rm_first(ravl_free_blocks_head_t *head_node,
     return block;
 }
 
+// node_list_rm_all - remove all free blocks from the list of free blocks of the same size (at finalize())
+static void node_list_rm_all(ravl_free_blocks_head_t *head_node) {
+    assert(head_node);
+
+    ravl_free_blocks_elem_t *node = head_node->head;
+    while (node) {
+        ravl_free_blocks_elem_t *node_next = node->next;
+        struct block_t *block = node->block;
+        block->free_list_ptr = NULL;
+        umf_ba_global_free(node);
+        node = node_next;
+    }
+
+    head_node->head = NULL;
+}
+
 // node_list_rm_with_alignment - remove the first free block with the correct alignment from the list of free blocks of the same size
 static block_t *node_list_rm_with_alignment(ravl_free_blocks_head_t *head_node,
                                             size_t alignment) {
@@ -764,6 +780,19 @@ static umf_result_t
 coarse_memory_provider_get_stats(void *provider,
                                  coarse_memory_provider_stats_t *stats);
 
+#define ASSERT_PRINT(a, b, exp)                                                \
+    do {                                                                       \
+        if (exp) {                                                             \
+            continue;                                                          \
+        }                                                                      \
+        fprintf(stderr, "%s = %zu, %s = %zu\n", #a, (size_t)(a), #b,           \
+                (size_t)(b));                                                  \
+        assert(exp);                                                           \
+    } while (0)
+
+#define ASSERT_PRINT_EQ(a, b) ASSERT_PRINT(a, b, ((a) == (b)))
+#define ASSERT_PRINT_GE(a, b) ASSERT_PRINT(a, b, ((a) >= (b)))
+
 static bool debug_check(coarse_memory_provider_t *provider) {
     assert(provider);
 
@@ -776,18 +805,18 @@ static bool debug_check(coarse_memory_provider_t *provider) {
     // verify the all_blocks list
     ravl_foreach(provider->all_blocks, debug_verify_all_blocks_cb, &cb_args);
 
-    assert(cb_args.num_all_blocks == stats.num_all_blocks);
-    assert(cb_args.num_free_blocks == stats.num_free_blocks);
-    assert(cb_args.sum_used == provider->used_size);
-    assert(cb_args.sum_blocks_size == provider->alloc_size);
-    assert(provider->alloc_size >= provider->used_size);
+    ASSERT_PRINT_EQ(cb_args.num_all_blocks, stats.num_all_blocks);
+    ASSERT_PRINT_EQ(cb_args.num_free_blocks, stats.num_free_blocks);
+    ASSERT_PRINT_EQ(cb_args.sum_used, provider->used_size);
+    ASSERT_PRINT_EQ(cb_args.sum_blocks_size, provider->alloc_size);
+    ASSERT_PRINT_GE(provider->alloc_size, provider->used_size);
 
     // verify the upstream_blocks list
     ravl_foreach(provider->upstream_blocks, debug_verify_upstream_blocks_cb,
                  &cb_args);
 
-    assert(cb_args.sum_alloc_size == provider->alloc_size);
-    assert(cb_args.num_alloc_blocks == stats.num_upstream_blocks);
+    ASSERT_PRINT_EQ(cb_args.sum_alloc_size, provider->alloc_size);
+    ASSERT_PRINT_EQ(cb_args.num_alloc_blocks, stats.num_upstream_blocks);
 
     return true;
 }
@@ -1034,6 +1063,19 @@ static void coarse_ravl_cb_rm_upstream_blocks_node(void *data, void *arg) {
     umf_ba_global_free(alloc);
 }
 
+static void coarse_ravl_cb_rm_free_blocks_node(void *data, void *arg) {
+    assert(data);
+    assert(arg);
+    (void)arg; // unused
+
+    ravl_data_t *node_data = data;
+    ravl_free_blocks_head_t *head_node = node_data->value;
+    assert(head_node);
+
+    node_list_rm_all(head_node);
+    umf_ba_global_free(head_node);
+}
+
 static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
     assert(data);
     assert(arg);
@@ -1067,13 +1109,21 @@ static void coarse_memory_provider_finalize(void *provider) {
 
     utils_mutex_destroy_not_free(&coarse_provider->lock);
 
+    assert(debug_check(coarse_provider));
+
     ravl_foreach(coarse_provider->all_blocks, coarse_ravl_cb_rm_all_blocks_node,
                  coarse_provider);
+    ravl_foreach(coarse_provider->free_blocks,
+                 coarse_ravl_cb_rm_free_blocks_node, coarse_provider);
     assert(coarse_provider->used_size == 0);
+
+    assert(debug_check(coarse_provider));
 
     ravl_foreach(coarse_provider->upstream_blocks,
                  coarse_ravl_cb_rm_upstream_blocks_node, coarse_provider);
     assert(coarse_provider->alloc_size == 0);
+
+    assert(debug_check(coarse_provider));
 
     ravl_delete(coarse_provider->upstream_blocks);
     ravl_delete(coarse_provider->all_blocks);
