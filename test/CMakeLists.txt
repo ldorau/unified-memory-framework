@@ -63,6 +63,11 @@ function(build_umf_test)
         target_compile_options(${TEST_TARGET_NAME} PRIVATE -Wno-cast-qual)
     endif()
 
+    if(BA_SOURCES_FOR_TEST)
+        target_compile_definitions(${TEST_TARGET_NAME}
+                                   PRIVATE DEBUG_BASE_ALLOC=1)
+    endif()
+
     target_link_directories(${TEST_TARGET_NAME} PRIVATE ${LIB_DIRS})
 
     target_include_directories(
@@ -324,6 +329,10 @@ endif()
 if(UMF_BUILD_SHARED_LIBRARY)
     # if build as shared library, ba symbols won't be visible in tests
     set(BA_SOURCES_FOR_TEST ${BA_SOURCES})
+    if(DEBUG_BASE_ALLOC)
+        set(BA_SOURCES_FOR_TEST ${BA_SOURCES_FOR_TEST}
+                                ${CMAKE_SOURCE_DIR}/src/critnib/critnib.c)
+    endif()
 endif()
 
 add_umf_test(
