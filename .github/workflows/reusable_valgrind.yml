@@ -43,5 +43,8 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Debug -j$(nproc)
 
+    - name: Run MY test
+      run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" valgrind ./test/umf_test-pool_coarse_file --gtest_filter="jemallocCoarseFileTest/umfPoolTest.allocFree/0*"
+
     - name: Run tests
-      run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build ${{ matrix.tool }}
+      run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build ${{ matrix.tool }}

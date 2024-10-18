@@ -28,6 +28,8 @@
      ((uintptr_t)(block)->data + (block)->size <=                              \
       (uintptr_t)(origin)->data + (origin)->size))
 
+#define WAS_FREED ((void *)0x07)
+
 typedef struct coarse_memory_provider_t {
     umf_memory_provider_handle_t upstream_memory_provider;
 
@@ -687,6 +689,11 @@ static void debug_verify_all_blocks_cb(void *data, void *arg) {
     block_t *block = node_data->value;
     assert(block);
 
+    if (block == WAS_FREED) {
+        /* block has already been freed */
+        return;
+    }
+
     debug_cb_args_t *cb_args = (debug_cb_args_t *)arg;
     coarse_memory_provider_t *provider = cb_args->provider;
 
@@ -1061,6 +1068,7 @@ static void coarse_ravl_cb_rm_upstream_blocks_node(void *data, void *arg) {
     coarse_provider->alloc_size -= alloc->size;
 
     umf_ba_global_free(alloc);
+    node_data->value = WAS_FREED;
 }
 
 static void coarse_ravl_cb_rm_free_blocks_node(void *data, void *arg) {
@@ -1074,6 +1082,7 @@ static void coarse_ravl_cb_rm_free_blocks_node(void *data, void *arg) {
 
     node_list_rm_all(head_node);
     umf_ba_global_free(head_node);
+    node_data->value = WAS_FREED;
 }
 
 static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
@@ -1096,6 +1105,7 @@ static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
     }
 
     umf_ba_global_free(block);
+    node_data->value = WAS_FREED;
 }
 
 static void coarse_memory_provider_finalize(void *provider) {
@@ -1109,25 +1119,25 @@ static void coarse_memory_provider_finalize(void *provider) {
 
     utils_mutex_destroy_not_free(&coarse_provider->lock);
 
+    if (coarse_provider->used_size) {
+        LOG_DEBUG("used_size at exit = %zu", coarse_provider->used_size);
+    }
+
     assert(debug_check(coarse_provider));
 
     ravl_foreach(coarse_provider->all_blocks, coarse_ravl_cb_rm_all_blocks_node,
                  coarse_provider);
+    ravl_delete(coarse_provider->all_blocks);
+
     ravl_foreach(coarse_provider->free_blocks,
                  coarse_ravl_cb_rm_free_blocks_node, coarse_provider);
+    ravl_delete(coarse_provider->free_blocks);
     assert(coarse_provider->used_size == 0);
-
-    assert(debug_check(coarse_provider));
 
     ravl_foreach(coarse_provider->upstream_blocks,
                  coarse_ravl_cb_rm_upstream_blocks_node, coarse_provider);
-    assert(coarse_provider->alloc_size == 0);
-
-    assert(debug_check(coarse_provider));
-
     ravl_delete(coarse_provider->upstream_blocks);
-    ravl_delete(coarse_provider->all_blocks);
-    ravl_delete(coarse_provider->free_blocks);
+    assert(coarse_provider->alloc_size == 0);
 
     umf_ba_global_free(coarse_provider->name);
 
