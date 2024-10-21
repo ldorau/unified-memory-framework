@@ -206,6 +206,10 @@ target_link_directories(umf PRIVATE ${UMF_PRIVATE_LIBRARY_DIRS})
 
 target_compile_definitions(umf PRIVATE ${UMF_COMMON_COMPILE_DEFINITIONS})
 
+if(DEBUG_BASE_ALLOC)
+    target_compile_definitions(umf PRIVATE DEBUG_BASE_ALLOC=1)
+endif()
+
 if(UMF_BUILD_LEVEL_ZERO_PROVIDER)
     if(LINUX)
         # WA for error ze_api.h:14234:20: no newline at end of file

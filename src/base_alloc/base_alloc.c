@@ -7,6 +7,7 @@
 
 #include <assert.h>
 
+#include "../critnib/critnib.h"
 #include "base_alloc.h"
 #include "base_alloc_internal.h"
 #include "utils_common.h"
@@ -52,6 +53,11 @@ struct umf_ba_pool_t {
 
     // metadata is set and used only in the main (the first) pool
     struct umf_ba_main_pool_meta_t metadata;
+
+#ifdef DEBUG_BASE_ALLOC
+    // key-value map (ptr, n_allocs)
+    critnib *c;
+#endif /* DEBUG_BASE_ALLOC */
 
     // data area of the main pool (the first one) starts here
     char data[];
@@ -161,6 +167,9 @@ umf_ba_pool_t *umf_ba_create(size_t size) {
 #ifndef NDEBUG
     pool->metadata.n_pools = 1;
     pool->metadata.n_chunks = 0;
+#ifdef DEBUG_BASE_ALLOC
+    pool->c = critnib_new();
+#endif /* DEBUG_BASE_ALLOC */
 #endif /* NDEBUG */
 
     utils_annotate_memory_defined(pool, offsetof(umf_ba_pool_t, data));
@@ -227,7 +236,12 @@ void *umf_ba_alloc(umf_ba_pool_t *pool) {
 
     pool->metadata.free_list = pool->metadata.free_list->next;
     pool->metadata.n_allocs++;
+
 #ifndef NDEBUG
+#ifdef DEBUG_BASE_ALLOC
+    critnib_insert(pool->c, (uintptr_t)chunk,
+                   (void *)(uintptr_t)pool->metadata.n_allocs, 0 /* update */);
+#endif /* DEBUG_BASE_ALLOC */
     ba_debug_checks(pool);
 #endif /* NDEBUG */
 
@@ -275,6 +289,9 @@ void umf_ba_free(umf_ba_pool_t *pool, void *ptr) {
     pool->metadata.free_list = chunk;
     pool->metadata.n_allocs--;
 #ifndef NDEBUG
+#ifdef DEBUG_BASE_ALLOC
+    critnib_remove(pool->c, (uintptr_t)ptr);
+#endif /* DEBUG_BASE_ALLOC */
     ba_debug_checks(pool);
 #endif /* NDEBUG */
 
@@ -295,8 +312,24 @@ void umf_ba_destroy(umf_ba_pool_t *pool) {
 #ifndef NDEBUG
     ba_debug_checks(pool);
     if (pool->metadata.n_allocs) {
-        LOG_ERR("pool->metadata.n_allocs = %zu", pool->metadata.n_allocs);
+        LOG_ERR("[%zu] pool->metadata.n_allocs = %zu",
+                pool->metadata.chunk_size, pool->metadata.n_allocs);
     }
+#ifdef DEBUG_BASE_ALLOC
+    uintptr_t rkey;
+    void *rvalue;
+    size_t n_items = 0;
+    uintptr_t last_key = 0;
+    while (1 == critnib_find(pool->c, last_key, FIND_G, &rkey, &rvalue)) {
+        n_items++;
+        LOG_ERR("[%zu] %zu) ptr = %p n_allocs = %zu", pool->metadata.chunk_size,
+                n_items, (void *)rkey, (size_t)rvalue);
+        void *removed_value = critnib_remove(pool->c, rkey);
+        assert(removed_value == rvalue);
+        last_key = rkey;
+    }
+    critnib_delete(pool->c);
+#endif /* DEBUG_BASE_ALLOC */
 #endif /* NDEBUG */
 
     size_t size = pool->metadata.pool_size;

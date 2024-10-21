@@ -49,6 +49,9 @@ option(UMF_BUILD_EXAMPLES "Build UMF examples" ON)
 option(UMF_BUILD_FUZZTESTS "Build UMF fuzz tests" OFF)
 option(UMF_BUILD_GPU_EXAMPLES "Build UMF GPU examples" OFF)
 option(UMF_DEVELOPER_MODE "Enable additional developer checks" OFF)
+
+option(DEBUG_BASE_ALLOC "DEBUG_BASE_ALLOC" ON) # ###############################
+
 option(
     UMF_DISABLE_HWLOC
     "Disable hwloc and UMF features requiring it (OS provider, memtargets, topology discovery)"
