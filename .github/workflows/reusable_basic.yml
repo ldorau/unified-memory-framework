@@ -171,10 +171,10 @@ jobs:
         -DUMF_LINK_HWLOC_STATICALLY=${{matrix.link_hwloc_statically}}
         ${{ matrix.build_type == 'Debug' && matrix.compiler.c == 'gcc' && '-DUMF_USE_COVERAGE=ON' || '' }}
 
-    - name: Build UMF
+    - name: Build UMF (====== CHANGED =======)
       run: |
         ${{ matrix.compiler.cxx == 'icpx' && '. /opt/intel/oneapi/setvars.sh' || true }}
-        cmake --build ${{env.BUILD_DIR}} -j $(nproc)
+        cmake --build ${{env.BUILD_DIR}} -j $(nproc) || cmake --build ${{env.BUILD_DIR}}
 
     - name: Run tests
       working-directory: ${{env.BUILD_DIR}}
