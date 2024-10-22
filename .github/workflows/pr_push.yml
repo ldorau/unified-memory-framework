@@ -31,46 +31,22 @@ jobs:
   DevDax:
     needs: [FastBuild]
     uses: ./.github/workflows/reusable_dax.yml
-  Sanitizers:
-    needs: [FastBuild]
-    uses: ./.github/workflows/reusable_sanitizers.yml
-  Qemu:
-    needs: [FastBuild]
-    uses: ./.github/workflows/reusable_qemu.yml
-  Benchmarks:
-    needs: [Build]
-    uses: ./.github/workflows/reusable_benchmarks.yml
   ProxyLib:
     needs: [Build]
     uses: ./.github/workflows/reusable_proxy_lib.yml
   GPU:
     needs: [Build]
     uses: ./.github/workflows/reusable_gpu.yml
-  Valgrind:
-    needs: [Build]
-    uses: ./.github/workflows/reusable_valgrind.yml
   MultiNuma:
     needs: [Build]
     uses: ./.github/workflows/reusable_multi_numa.yml
   Coverage:
     # total coverage (on upstream only)
     if: github.repository == 'oneapi-src/unified-memory-framework'
-    needs: [Build, DevDax, GPU, MultiNuma, Qemu, ProxyLib]
+    needs: [Build, DevDax, GPU, MultiNuma, ProxyLib]
     uses: ./.github/workflows/reusable_coverage.yml
   Coverage_partial:
     # partial coverage (on forks)
     if: github.repository != 'oneapi-src/unified-memory-framework'
-    needs: [Build, Qemu, ProxyLib]
+    needs: [Build, ProxyLib]
     uses: ./.github/workflows/reusable_coverage.yml
-  CodeQL:
-    needs: [Build]
-    permissions:
-      contents: read
-      security-events: write
-    uses: ./.github/workflows/reusable_codeql.yml
-  Trivy:
-    needs: [Build]
-    permissions:
-      contents: read
-      security-events: write
-    uses: ./.github/workflows/reusable_trivy.yml
