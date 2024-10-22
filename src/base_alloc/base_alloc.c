@@ -290,6 +290,23 @@ void umf_ba_free(umf_ba_pool_t *pool, void *ptr) {
     pool->metadata.n_allocs--;
 #ifndef NDEBUG
 #ifdef DEBUG_BASE_ALLOC
+    LOG_ERR("[%zu] 0) ptr = %p, pool->metadata.n_allocs = %zu",
+            pool->metadata.chunk_size, ptr, pool->metadata.n_allocs);
+    if (pool->metadata.n_allocs == 1) {
+        uintptr_t rkey;
+        void *rvalue;
+        size_t n_items = 0;
+        uintptr_t last_key = 0;
+        while (1 == critnib_find(pool->c, last_key, FIND_G, &rkey, &rvalue)) {
+            n_items++;
+            LOG_ERR("[%zu] %zu) ptr = %p n_allocs = %zu",
+                    pool->metadata.chunk_size, n_items, (void *)rkey,
+                    (size_t)rvalue);
+            void *removed_value = critnib_remove(pool->c, rkey);
+            assert(removed_value == rvalue);
+            last_key = rkey;
+        }
+    }
     critnib_remove(pool->c, (uintptr_t)ptr);
 #endif /* DEBUG_BASE_ALLOC */
     ba_debug_checks(pool);
