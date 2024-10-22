@@ -61,19 +61,27 @@ jobs:
 
       - name: Run "ctest --output-on-failure" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
+        run: |
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 truncate -s $UMF_TESTS_DEVDAX_SIZE $UMF_TESTS_DEVDAX_PATH
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
 
       - name: Run "./test/umf_test-memoryPool" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
+        run: |
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 truncate -s $UMF_TESTS_DEVDAX_SIZE $UMF_TESTS_DEVDAX_PATH
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
 
       - name: Run "/usr/bin/ls" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-fd" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
+        run: |
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 truncate -s $UMF_TESTS_DEVDAX_SIZE $UMF_TESTS_DEVDAX_PATH
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 UMF_PROXY="page.disposition=shared-fd" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
 
       - name: Run "/usr/bin/date" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-shm" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
+        run: |
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 truncate -s $UMF_TESTS_DEVDAX_SIZE $UMF_TESTS_DEVDAX_PATH
+          UMF_TESTS_DEVDAX_PATH=/tmp/dax0.0 UMF_TESTS_DEVDAX_SIZE=1054867456 UMF_PROXY="page.disposition=shared-shm" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
 
       - name: Check coverage
         if:  ${{ matrix.build_type == 'Debug' }}
