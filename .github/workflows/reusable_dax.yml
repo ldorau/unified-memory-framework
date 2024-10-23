@@ -23,6 +23,7 @@ permissions:
 
 env:
   DEVDAX_NAMESPACE : "0.0"
+  DEVDAX_NAMESPACE_2 : "2.0"
   FSDAX_NAMESPACE : "1.0"
   FSDAX_PMEM: "pmem1"
   UMF_TESTS_FSDAX_PATH: "/mnt/pmem1/file"
@@ -51,6 +52,12 @@ jobs:
           ls -al /dev/dax${{env.DEVDAX_NAMESPACE}}
           echo UMF_TESTS_DEVDAX_PATH="/dev/dax${{env.DEVDAX_NAMESPACE}}"
           echo UMF_TESTS_DEVDAX_SIZE="$(ndctl list --namespace=namespace${{env.DEVDAX_NAMESPACE}} | grep size | cut -d':' -f2 | cut -d',' -f1)"
+          echo
+          echo DEVDAX_NAMESPACE_2="${{env.DEVDAX_NAMESPACE_2}}"
+          ndctl list --namespace=namespace${{env.DEVDAX_NAMESPACE_2}} --device-dax
+          ls -al /dev/dax${{env.DEVDAX_NAMESPACE_2}}
+          echo UMF_TESTS_DEVDAX_PATH_2="/dev/dax${{env.DEVDAX_NAMESPACE_2}}"
+          echo UMF_TESTS_DEVDAX_SIZE_2="$(ndctl list --namespace=namespace${{env.DEVDAX_NAMESPACE_2}} | grep size | cut -d':' -f2 | cut -d',' -f1)"
 
       - name: Check configuration of the FSDAX
         run: |
@@ -96,7 +103,9 @@ jobs:
         working-directory: ${{env.BUILD_DIR}}
         run: >
           UMF_TESTS_DEVDAX_PATH="/dev/dax${{env.DEVDAX_NAMESPACE}}"
+          UMF_TESTS_DEVDAX_PATH_2="/dev/dax${{env.DEVDAX_NAMESPACE_2}}"
           UMF_TESTS_DEVDAX_SIZE="$(ndctl list --namespace=namespace${{env.DEVDAX_NAMESPACE}} | grep size | cut -d':' -f2 | cut -d',' -f1)"
+          UMF_TESTS_DEVDAX_SIZE_2="$(ndctl list --namespace=namespace${{env.DEVDAX_NAMESPACE_2}} | grep size | cut -d':' -f2 | cut -d',' -f1)"
           ctest -C ${{matrix.build_type}} -R devdax -V
 
       - name: Run the FSDAX tests
