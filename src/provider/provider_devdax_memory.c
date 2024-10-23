@@ -442,24 +442,10 @@ static umf_result_t devdax_open_ipc_handle(void *provider,
         (devdax_memory_provider_t *)provider;
     devdax_ipc_data_t *devdax_ipc_data = (devdax_ipc_data_t *)providerIpcData;
 
-    // verify it is the same devdax - first verify the path
-    if (strncmp(devdax_ipc_data->dd_path, devdax_provider->path, PATH_MAX)) {
-        LOG_ERR("devdax path mismatch (local: %s, ipc: %s)",
-                devdax_provider->path, devdax_ipc_data->dd_path);
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    // verify the size of the /dev/dax
-    if (devdax_ipc_data->dd_size != devdax_provider->size) {
-        LOG_ERR("devdax size mismatch (local: %zu, ipc: %zu)",
-                devdax_provider->size, devdax_ipc_data->dd_size);
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
     umf_result_t ret = UMF_RESULT_SUCCESS;
-    int fd = utils_devdax_open(devdax_provider->path);
+    int fd = utils_devdax_open(devdax_ipc_data->dd_path);
     if (fd == -1) {
-        LOG_PERR("opening a devdax (%s) failed", devdax_provider->path);
+        LOG_PERR("opening a devdax (%s) failed", devdax_ipc_data->dd_path);
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
@@ -467,7 +453,7 @@ static umf_result_t devdax_open_ipc_handle(void *provider,
     utils_translate_mem_visibility_flag(UMF_MEM_MAP_SYNC, &map_sync_flag);
 
     // mmap /dev/dax with the MAP_SYNC xor MAP_SHARED flag (if MAP_SYNC fails)
-    char *base = utils_mmap_file(NULL, devdax_provider->size,
+    char *base = utils_mmap_file(NULL, devdax_ipc_data->dd_size,
                                  devdax_provider->protection, map_sync_flag, fd,
                                  0 /* offset */);
     if (base == NULL) {
@@ -475,14 +461,14 @@ static umf_result_t devdax_open_ipc_handle(void *provider,
                                        errno);
         LOG_PERR("devdax mapping failed (path: %s, size: %zu, protection: %i, "
                  "fd: %i)",
-                 devdax_provider->path, devdax_provider->size,
+                 devdax_ipc_data->dd_path, devdax_ipc_data->dd_size,
                  devdax_provider->protection, fd);
         ret = UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
     }
 
     LOG_DEBUG("devdax mapped (path: %s, size: %zu, protection: %i, fd: %i, "
               "offset: %zu)",
-              devdax_provider->path, devdax_provider->size,
+              devdax_ipc_data->dd_path, devdax_ipc_data->dd_size,
               devdax_provider->protection, fd, devdax_ipc_data->offset);
 
     (void)utils_close_fd(fd);

@@ -19,6 +19,16 @@ if [ "$UMF_TESTS_DEVDAX_SIZE" = "" ]; then
 	exit 0
 fi
 
+if [ "$UMF_TESTS_DEVDAX_PATH_2" = "" ]; then
+	echo "Test skipped, UMF_TESTS_DEVDAX_PATH_2 is not set"
+	exit 0
+fi
+
+if [ "$UMF_TESTS_DEVDAX_SIZE_2" = "" ]; then
+	echo "Test skipped, UMF_TESTS_DEVDAX_SIZE_2 is not set"
+	exit 0
+fi
+
 # port should be a number from the range <1024, 65535>
 PORT=$(( 1024 + ( $$ % ( 65535 - 1024 ))))
 

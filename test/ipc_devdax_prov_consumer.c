@@ -21,15 +21,15 @@ int main(int argc, char *argv[]) {
 
     int port = atoi(argv[1]);
 
-    char *path = getenv("UMF_TESTS_DEVDAX_PATH");
+    char *path = getenv("UMF_TESTS_DEVDAX_PATH_2");
     if (path == NULL || path[0] == 0) {
-        fprintf(stderr, "Test skipped, UMF_TESTS_DEVDAX_PATH is not set\n");
+        fprintf(stderr, "Test skipped, UMF_TESTS_DEVDAX_PATH_2 is not set\n");
         return 0;
     }
 
-    char *size = getenv("UMF_TESTS_DEVDAX_SIZE");
+    char *size = getenv("UMF_TESTS_DEVDAX_SIZE_2");
     if (size == NULL || size[0] == 0) {
-        fprintf(stderr, "Test skipped, UMF_TESTS_DEVDAX_SIZE is not set\n");
+        fprintf(stderr, "Test skipped, UMF_TESTS_DEVDAX_SIZE_2 is not set\n");
         return 0;
     }
 
