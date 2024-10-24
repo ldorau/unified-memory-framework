@@ -220,6 +220,14 @@ TEST_P(umfIpcTest, BasicFlow) {
     ret = umfPoolFree(pool.get(), ptr);
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
 
+    ptr = (int *)umfPoolMalloc(pool.get(), SIZE * sizeof(int));
+    EXPECT_NE(ptr, nullptr);
+
+    memset(ptr, 0xAB, SIZE * sizeof(int));
+
+    ret = umfPoolFree(pool.get(), ptr);
+    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+
     pool.reset(nullptr);
     EXPECT_EQ(stat.getCount, 1);
     EXPECT_EQ(stat.putCount, stat.getCount);
@@ -328,8 +336,13 @@ TEST_P(umfIpcTest, AllocFreeAllocTest) {
     ret = umfPoolFree(pool.get(), ptr);
     EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
 
+    ptr = umfPoolMalloc(pool.get(), SIZE);
+    ASSERT_NE(ptr, nullptr);
+
+    ret = umfPoolFree(pool.get(), ptr);
+    EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+
     pool.reset(nullptr);
-    EXPECT_EQ(stat.allocCount, stat.getCount);
     EXPECT_EQ(stat.getCount, stat.putCount);
     EXPECT_EQ(stat.openCount, stat.getCount);
     EXPECT_EQ(stat.openCount, stat.closeCount);
