@@ -194,7 +194,7 @@ TEST_P(umfIpcTest, BasicFlow) {
 
     void *fullArray = nullptr;
     ret = umfOpenIPCHandle(pool.get(), ipcHandleFull, &fullArray);
-    ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
+    ASSERT_EQ(ret, UMF_RESULT_SUCCESS); // <<<<<<<<<<<<<
 
     void *halfArray = nullptr;
     ret = umfOpenIPCHandle(pool.get(), ipcHandleHalf, &halfArray);
