@@ -25,6 +25,8 @@
  * - _aligned_offset_malloc()
  * - _aligned_offset_realloc()
  * - _aligned_offset_recalloc()
+ * 
+ * TODO
  */
 
 #if (defined PROXY_LIB_USES_JEMALLOC_POOL)
@@ -46,8 +48,10 @@
 #include <umf/providers/provider_os_memory.h>
 
 #include "base_alloc_linear.h"
+#include "provider_tracking.h"
 #include "proxy_lib.h"
 #include "utils_common.h"
+#include "utils_load_library.h"
 #include "utils_log.h"
 
 #ifdef _WIN32 /* Windows ***************************************/
@@ -103,6 +107,9 @@ static umf_memory_pool_handle_t Proxy_pool = NULL;
 // it protects us from recursion in umfPool*()
 static __TLS int was_called_from_umfPool = 0;
 
+// Proxy Lib have a separate tracker
+umf_memory_tracker_handle_t TRACKER_PROXY = NULL;
+
 /*****************************************************************************/
 /*** The constructor and destructor of the proxy library *********************/
 /*****************************************************************************/
@@ -112,6 +119,12 @@ void proxy_lib_create_common(void) {
     umf_os_memory_provider_params_t os_params =
         umfOsMemoryProviderParamsDefault();
     umf_result_t umf_result;
+
+    TRACKER_PROXY = umfMemoryTrackerCreate();
+    if (TRACKER_PROXY == NULL) {
+        LOG_ERR("creating a tracker for the Proxy Lib failed!");
+        exit(-1);
+    }
 
 #ifndef _WIN32
     char shm_name[NAME_MAX];
@@ -143,8 +156,12 @@ void proxy_lib_create_common(void) {
         exit(-1);
     }
 
-    umf_result = umfPoolCreate(umfPoolManagerOps(), OS_memory_provider, NULL, 0,
-                               &Proxy_pool);
+    // NOTE: UMF_POOL_CREATE_FLAG_RESERVED is used when we want to create a
+    // pool with non-default tracker (passed in params)
+    umf_result =
+        umfPoolCreate(umfPoolManagerOps(), OS_memory_provider, TRACKER_PROXY,
+                      UMF_POOL_CREATE_FLAG_RESERVED, &Proxy_pool);
+
     if (umf_result != UMF_RESULT_SUCCESS) {
         LOG_ERR("creating UMF pool manager failed");
         exit(-1);
@@ -168,6 +185,29 @@ void proxy_lib_destroy_common(void) {
     umf_memory_provider_handle_t provider = OS_memory_provider;
     OS_memory_provider = NULL;
     umfMemoryProviderDestroy(provider);
+}
+
+// intercepting UMF call
+umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
+                                          umf_alloc_info_t *pAllocInfo) {
+    umf_result_t res = UMF_RESULT_ERROR_UNKNOWN;
+
+    // first try to look for alloc info in UMF lib tracker,
+    // then in the Proxy Lib
+    umf_result_t (*pfnUmfMemoryTrackerGetAllocInfo)(const void *,
+                                                    umf_alloc_info_t *);
+    *(void **)(&pfnUmfMemoryTrackerGetAllocInfo) = utils_get_symbol_addr(
+        (void *)-1l, "umfMemoryTrackerGetAllocInfo", NULL);
+    if (pfnUmfMemoryTrackerGetAllocInfo) {
+        res = pfnUmfMemoryTrackerGetAllocInfo(ptr, pAllocInfo);
+        if (res == UMF_RESULT_SUCCESS) {
+            return res;
+        }
+    }
+
+    // try the Proxy Lib tracker
+    umf_memory_tracker_handle_t tracker = TRACKER_PROXY;
+    return umfMemoryTrackerGetAllocInfoTracker(ptr, tracker, pAllocInfo);
 }
 
 /*****************************************************************************/
@@ -248,6 +288,7 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 void *malloc(size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
+        LOG_DEBUG("Proxy Lib: calling umfPoolMalloc size=%zu", size);
         void *ptr = umfPoolMalloc(Proxy_pool, size);
         was_called_from_umfPool = 0;
         return ptr;
@@ -259,6 +300,8 @@ void *malloc(size_t size) {
 void *calloc(size_t nmemb, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
+        LOG_DEBUG("Proxy Lib: calling umfPoolCalloc nmemb=%zu, size=%zu", nmemb,
+                  size);
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
         was_called_from_umfPool = 0;
         return ptr;
@@ -277,6 +320,7 @@ void free(void *ptr) {
     }
 
     if (Proxy_pool) {
+        LOG_DEBUG("Proxy Lib: calling umfPoolFree ptr=%p", ptr);
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
             LOG_ERR("umfPoolFree() failed");
             assert(0);
@@ -305,6 +349,8 @@ void *realloc(void *ptr, size_t size) {
 
     if (Proxy_pool) {
         was_called_from_umfPool = 1;
+        LOG_DEBUG("Proxy Lib: calling umfPoolRealloc ptr=%p, size=%zu", ptr,
+                  size);
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
         was_called_from_umfPool = 0;
         return new_ptr;
@@ -317,6 +363,9 @@ void *realloc(void *ptr, size_t size) {
 void *aligned_alloc(size_t alignment, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
+        LOG_DEBUG(
+            "Proxy Lib: calling umfPoolAlignedMalloc size=%zu, alignment=%zu",
+            size, alignment);
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
         was_called_from_umfPool = 0;
         return ptr;
@@ -338,6 +387,7 @@ size_t malloc_usable_size(void *ptr) {
 
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
+        LOG_DEBUG("Proxy Lib: calling umfPoolMallocUsableSize ptr=%p", ptr);
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
         was_called_from_umfPool = 0;
         return size;

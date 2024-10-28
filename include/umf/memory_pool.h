@@ -38,6 +38,7 @@ typedef enum umf_pool_create_flag_t {
     UMF_POOL_CREATE_FLAG_DISABLE_TRACKING =
         (1 << 1), ///< Pool will not track memory allocations
     /// @cond
+    UMF_POOL_CREATE_FLAG_RESERVED = (1 << 20), ///< Reserved
     UMF_POOL_CREATE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond
 

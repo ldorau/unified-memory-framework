@@ -12,6 +12,7 @@
         malloc;
         malloc_usable_size;
         realloc;
+        umfMemoryTrackerGetAllocInfo;
     local:
         *;
 };

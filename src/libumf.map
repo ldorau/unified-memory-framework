@@ -36,6 +36,7 @@ UMF_1.0 {
         umfMemoryProviderPurgeLazy;
         umfMemoryProviderPutIPCHandle;
         umfMemoryTrackerGetAllocInfo;
+        umfMemoryTrackerGetAllocInfoTracker;
         umfMempolicyCreate;
         umfMempolicyDestroy;
         umfMempolicySetCustomSplitPartitions;

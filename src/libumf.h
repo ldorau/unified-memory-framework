@@ -7,6 +7,8 @@
  *
  */
 
+#include "tracker.h"
+
 #ifndef UMF_LIBUMF_H
 #define UMF_LIBUMF_H 1
 
@@ -16,6 +18,8 @@ extern "C" {
 
 // initializes runtime state needed by the library (needed mostly for static libraries on Windows)
 void libumfInit(void);
+
+umf_memory_tracker_handle_t umfMemoryTrackerGet();
 
 #ifdef __cplusplus
 }

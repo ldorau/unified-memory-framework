@@ -7,35 +7,33 @@
  *
  */
 
-#include "provider_tracking.h"
-#include "base_alloc_global.h"
-#include "critnib.h"
-#include "ipc_internal.h"
-#include "utils_common.h"
-#include "utils_concurrency.h"
-#include "utils_log.h"
-
-#include <umf/memory_pool.h>
-#include <umf/memory_provider.h>
-#include <umf/memory_provider_ops.h>
-
 #include <assert.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct tracker_value_t {
-    umf_memory_pool_handle_t pool;
-    size_t size;
-} tracker_value_t;
+#include <umf/memory_pool.h>
+#include <umf/memory_provider.h>
+#include <umf/memory_provider_ops.h>
+
+#include "base_alloc_global.h"
+#include "critnib.h"
+#include "ipc_internal.h"
+#include "libumf.h"
+#include "memory_pool_internal.h"
+#include "provider_tracking.h"
+#include "tracker.h"
+#include "utils_common.h"
+#include "utils_concurrency.h"
+#include "utils_log.h"
 
 static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
                                         umf_memory_pool_handle_t pool,
                                         const void *ptr, size_t size) {
     assert(ptr);
 
-    tracker_value_t *value = umf_ba_alloc(hTracker->tracker_allocator);
+    umf_tracker_value_t *value = umf_ba_alloc(hTracker->tracker_allocator);
     if (value == NULL) {
         LOG_ERR("failed to allocate tracker value, ptr=%p, size=%zu", ptr,
                 size);
@@ -81,14 +79,19 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
         return UMF_RESULT_ERROR_UNKNOWN;
     }
 
-    tracker_value_t *v = value;
-
-    LOG_DEBUG("memory region removed: tracker=%p, ptr=%p, size=%zu",
-              (void *)hTracker, ptr, v->size);
+    umf_tracker_value_t *v = value;
+    LOG_DEBUG("memory region removed: tracker=%p, ptr=%p, pool=%p, size=%zu",
+              (void *)hTracker, ptr, (void *)v->pool, v->size);
 
     umf_ba_free(hTracker->tracker_allocator, value);
 
     return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
+                                          umf_alloc_info_t *pAllocInfo) {
+    umf_memory_tracker_handle_t tracker = umfMemoryTrackerGet();
+    return umfMemoryTrackerGetAllocInfoTracker(ptr, tracker, pAllocInfo);
 }
 
 umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr) {
@@ -101,39 +104,6 @@ umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr) {
     return allocInfo.pool;
 }
 
-umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
-                                          umf_alloc_info_t *pAllocInfo) {
-    assert(ptr);
-    assert(pAllocInfo);
-
-    if (TRACKER == NULL) {
-        LOG_ERR("tracker is not created");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
-
-    if (TRACKER->map == NULL) {
-        LOG_ERR("tracker's map is not created");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
-
-    uintptr_t rkey;
-    tracker_value_t *rvalue;
-    int found = critnib_find(TRACKER->map, (uintptr_t)ptr, FIND_LE,
-                             (void *)&rkey, (void **)&rvalue);
-    if (!found || (uintptr_t)ptr >= rkey + rvalue->size) {
-        LOG_WARN("pointer %p not found in the "
-                 "tracker, TRACKER=%p",
-                 ptr, (void *)TRACKER);
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    pAllocInfo->base = (void *)rkey;
-    pAllocInfo->baseSize = rvalue->size;
-    pAllocInfo->pool = rvalue->pool;
-
-    return UMF_RESULT_SUCCESS;
-}
-
 // Cache entry structure to store provider-specific IPC data.
 // providerIpcData is a Flexible Array Member because its size varies
 // depending on the provider.
@@ -141,18 +111,6 @@ typedef struct ipc_cache_value_t {
     uint64_t ipcDataSize;
     char providerIpcData[];
 } ipc_cache_value_t;
-
-typedef struct umf_tracking_memory_provider_t {
-    umf_memory_provider_handle_t hUpstream;
-    umf_memory_tracker_handle_t hTracker;
-    umf_memory_pool_handle_t pool;
-    critnib *ipcCache;
-
-    // the upstream provider does not support the free() operation
-    bool upstreamDoesNotFree;
-} umf_tracking_memory_provider_t;
-
-typedef struct umf_tracking_memory_provider_t umf_tracking_memory_provider_t;
 
 static umf_result_t trackingAlloc(void *hProvider, size_t size,
                                   size_t alignment, void **ptr) {
@@ -167,23 +125,25 @@ static umf_result_t trackingAlloc(void *hProvider, size_t size,
         return ret;
     }
 
+    LOG_DEBUG("allocated %p, provider: %p, size: %zu", *ptr,
+              (void *)p->hUpstream, size);
+
     // check if the allocation was already added to the tracker
     // (in case of using ProxyLib)
-    tracker_value_t *value =
-        (tracker_value_t *)critnib_get(p->hTracker->map, *(uintptr_t *)ptr);
+    umf_tracker_value_t *value =
+        (umf_tracker_value_t *)critnib_get(p->hTracker->map, *(uintptr_t *)ptr);
     if (value) {
-        assert(value->pool != p->pool);
+        LOG_ERR("ptr already exists in the tracker ptr=%p, old size=%zu, new "
+                "size=%zu, old pool %p, new pool %p, tracker %p",
+                *ptr, value->size, size, (void *)value->pool, (void *)p->pool,
+                (void *)p->hTracker);
 
-        LOG_DEBUG("ptr already exists in the tracker (added by Proxy Lib) - "
-                  "updating value, ptr=%p, size=%zu, old pool: %p, new pool %p",
-                  *ptr, size, (void *)value->pool, (void *)p->pool);
-
-        // the allocation was made by the ProxyLib so we only update the tracker
         value->pool = p->pool;
+        value->size = size;
         int crit_ret = critnib_insert(p->hTracker->map, *(uintptr_t *)ptr,
                                       value, 1 /* update */);
 
-        // this cannot fail since we know the element exists  and there is
+        // this cannot fail since we know the element exists and there is
         // nothing to allocate
         assert(crit_ret == 0);
         (void)crit_ret;
@@ -208,7 +168,7 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
     umf_tracking_memory_provider_t *provider =
         (umf_tracking_memory_provider_t *)hProvider;
 
-    tracker_value_t *splitValue =
+    umf_tracker_value_t *splitValue =
         umf_ba_alloc(provider->hTracker->tracker_allocator);
     if (!splitValue) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -222,8 +182,14 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
         goto err_lock;
     }
 
-    tracker_value_t *value =
-        (tracker_value_t *)critnib_get(provider->hTracker->map, (uintptr_t)ptr);
+    void *highPtr = (void *)(((uintptr_t)ptr) + firstSize);
+    size_t secondSize = totalSize - firstSize;
+
+    LOG_DEBUG("trying to split (%p, %zu) to (%p, %zu) and (%p, %zu)", ptr,
+              totalSize, ptr, firstSize, highPtr, secondSize);
+
+    umf_tracker_value_t *value = (umf_tracker_value_t *)critnib_get(
+        provider->hTracker->map, (uintptr_t)ptr);
     if (!value) {
         LOG_ERR("region for split is not found in the tracker");
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
@@ -243,9 +209,6 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
         goto err;
     }
 
-    void *highPtr = (void *)(((uintptr_t)ptr) + firstSize);
-    size_t secondSize = totalSize - firstSize;
-
     // We'll have a duplicate entry for the range [highPtr, highValue->size] but this is fine,
     // the value is the same anyway and we forbid removing that range concurrently
     ret = umfMemoryTrackerAdd(provider->hTracker, provider->pool, highPtr,
@@ -259,6 +222,9 @@ static umf_result_t trackingAllocationSplit(void *hProvider, void *ptr,
         // (value and critnib nodes) before calling umfMemoryProviderAllocationSplit.
         goto err;
     }
+
+    LOG_DEBUG("update split region ptr=%p, pool=%p size=%zu", ptr,
+              (void *)splitValue->pool, splitValue->size);
 
     int cret = critnib_insert(provider->hTracker->map, (uintptr_t)ptr,
                               (void *)splitValue, 1 /* update */);
@@ -285,7 +251,7 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
     umf_tracking_memory_provider_t *provider =
         (umf_tracking_memory_provider_t *)hProvider;
 
-    tracker_value_t *mergedValue =
+    umf_tracker_value_t *mergedValue =
         umf_ba_alloc(provider->hTracker->tracker_allocator);
 
     if (!mergedValue) {
@@ -300,25 +266,29 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
         goto err_lock;
     }
 
-    tracker_value_t *lowValue = (tracker_value_t *)critnib_get(
+    umf_tracker_value_t *lowValue = (umf_tracker_value_t *)critnib_get(
         provider->hTracker->map, (uintptr_t)lowPtr);
     if (!lowValue) {
-        LOG_ERR("no left value");
+        LOG_ERR("no left value (%p) found in tracker!", lowPtr);
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
         goto err;
     }
-    tracker_value_t *highValue = (tracker_value_t *)critnib_get(
+
+    umf_tracker_value_t *highValue = (umf_tracker_value_t *)critnib_get(
         provider->hTracker->map, (uintptr_t)highPtr);
     if (!highValue) {
-        LOG_ERR("no right value");
+        LOG_ERR("no right value (%p) found in tracker!", highPtr);
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
         goto err;
     }
+
     if (lowValue->pool != highValue->pool) {
-        LOG_ERR("pool mismatch");
+        LOG_ERR("pool mismatch: %p vs %p", (void *)lowValue->pool,
+                (void *)highValue->pool);
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
         goto err;
     }
+
     if (lowValue->size + highValue->size != totalSize) {
         LOG_ERR("lowValue->size + highValue->size != totalSize");
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
@@ -355,6 +325,11 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
 
 err:
     utils_mutex_unlock(&provider->hTracker->splitMergeMutex);
+
+    // TODO we should never go here in our CI but jemalloc_coarse_devdax tests
+    // do something bad - we need to debug this
+    // assert(0);
+
 err_lock:
     umf_ba_free(provider->hTracker->tracker_allocator, mergedValue);
     return ret;
@@ -371,12 +346,13 @@ static umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
     // could allocate the memory at address `ptr` before a call to umfMemoryTrackerRemove
     // resulting in inconsistent state.
     if (ptr) {
+        LOG_DEBUG("calling umfMemoryTrackerRemove ptr=%p, size=%zu", ptr, size);
         ret_remove = umfMemoryTrackerRemove(p->hTracker, ptr);
         if (ret_remove != UMF_RESULT_SUCCESS) {
             // DO NOT return an error here, because the tracking provider
             // cannot change behaviour of the upstream provider.
             LOG_ERR("failed to remove the region from the tracker, ptr=%p, "
-                    "size=%zu, ret = %d",
+                    "size=%zu, ret=%d",
                     ptr, size, ret_remove);
         }
     }
@@ -394,6 +370,7 @@ static umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
         umf_ba_global_free(value);
     }
 
+    LOG_DEBUG("calling umfMemoryProviderFree ptr=%p, size=%zu", ptr, size);
     ret = umfMemoryProviderFree(p->hUpstream, ptr, size);
     if (ret != UMF_RESULT_SUCCESS) {
         LOG_ERR("upstream provider failed to free the memory");
@@ -430,55 +407,6 @@ static umf_result_t trackingInitialize(void *params, void **ret) {
 
     *ret = provider;
     return UMF_RESULT_SUCCESS;
-}
-
-// TODO clearing the tracker is a temporary solution and should be removed.
-// The tracker should be cleared using the provider's free() operation.
-static void clear_tracker_for_the_pool(umf_memory_tracker_handle_t hTracker,
-                                       umf_memory_pool_handle_t pool,
-                                       bool upstreamDoesNotFree) {
-    uintptr_t rkey;
-    void *rvalue;
-    size_t n_items = 0;
-    uintptr_t last_key = 0;
-
-    while (1 == critnib_find((critnib *)hTracker->map, last_key, FIND_G, &rkey,
-                             &rvalue)) {
-        tracker_value_t *value = (tracker_value_t *)rvalue;
-        if (value->pool != pool && pool != NULL) {
-            last_key = rkey;
-            continue;
-        }
-
-        n_items++;
-
-        void *removed_value = critnib_remove(hTracker->map, rkey);
-        assert(removed_value == rvalue);
-        umf_ba_free(hTracker->tracker_allocator, removed_value);
-
-        last_key = rkey;
-    }
-
-#ifndef NDEBUG
-    // print error messages only if provider supports the free() operation
-    if (n_items && !upstreamDoesNotFree) {
-        if (pool) {
-            LOG_ERR(
-                "tracking provider of pool %p is not empty! (%zu items left)",
-                (void *)pool, n_items);
-        } else {
-            LOG_ERR("tracking provider is not empty! (%zu items left)",
-                    n_items);
-        }
-    }
-#else  /* DEBUG */
-    (void)upstreamDoesNotFree; // unused in DEBUG build
-    (void)n_items;             // unused in DEBUG build
-#endif /* DEBUG */
-}
-
-static void clear_tracker(umf_memory_tracker_handle_t hTracker) {
-    clear_tracker_for_the_pool(hTracker, NULL, false);
 }
 
 static void trackingFinalize(void *provider) {
@@ -685,6 +613,7 @@ static umf_result_t trackingCloseIpcHandle(void *provider, void *ptr,
     // could allocate the memory at address `ptr` before a call to umfMemoryTrackerRemove
     // resulting in inconsistent state.
     if (ptr) {
+        LOG_DEBUG("calling umfMemoryTrackerRemove ptr=%p, size=%zu", ptr, size);
         umf_result_t ret = umfMemoryTrackerRemove(p->hTracker, ptr);
         if (ret != UMF_RESULT_SUCCESS) {
             // DO NOT return an error here, because the tracking provider
@@ -715,18 +644,25 @@ umf_memory_provider_ops_t UMF_TRACKING_MEMORY_PROVIDER_OPS = {
     .ipc.get_ipc_handle = trackingGetIpcHandle,
     .ipc.put_ipc_handle = trackingPutIpcHandle,
     .ipc.open_ipc_handle = trackingOpenIpcHandle,
-    .ipc.close_ipc_handle = trackingCloseIpcHandle};
+    .ipc.close_ipc_handle = trackingCloseIpcHandle,
+};
+
+umf_memory_provider_ops_t *umfTrackingMemoryProviderOps(void) {
+    return &UMF_TRACKING_MEMORY_PROVIDER_OPS;
+}
 
 umf_result_t umfTrackingMemoryProviderCreate(
     umf_memory_provider_handle_t hUpstream, umf_memory_pool_handle_t hPool,
-    umf_memory_provider_handle_t *hTrackingProvider, bool upstreamDoesNotFree) {
+    umf_memory_provider_handle_t *hTrackingProvider,
+    umf_memory_tracker_handle_t tracker, bool upstreamDoesNotFree) {
 
     umf_tracking_memory_provider_t params;
     params.hUpstream = hUpstream;
     params.upstreamDoesNotFree = upstreamDoesNotFree;
-    params.hTracker = TRACKER;
+    // if the tracker passed by arg is NULL use the default one
+    params.hTracker = tracker ? tracker : umfMemoryTrackerGet();
     if (!params.hTracker) {
-        LOG_ERR("failed, TRACKER is NULL");
+        LOG_ERR("failed, tracker is NULL");
         return UMF_RESULT_ERROR_UNKNOWN;
     }
     params.pool = hPool;
@@ -741,79 +677,41 @@ umf_result_t umfTrackingMemoryProviderCreate(
               (void *)params.hUpstream, (void *)params.hTracker,
               (void *)params.pool, (void *)params.ipcCache);
 
-    return umfMemoryProviderCreate(&UMF_TRACKING_MEMORY_PROVIDER_OPS, &params,
+    return umfMemoryProviderCreate(umfTrackingMemoryProviderOps(), &params,
                                    hTrackingProvider);
 }
 
-void umfTrackingMemoryProviderGetUpstreamProvider(
-    umf_memory_provider_handle_t hTrackingProvider,
-    umf_memory_provider_handle_t *hUpstream) {
-    assert(hUpstream);
-    umf_tracking_memory_provider_t *p =
-        (umf_tracking_memory_provider_t *)hTrackingProvider;
-    *hUpstream = p->hUpstream;
-}
+umf_result_t
+umfMemoryTrackerGetAllocInfoTracker(const void *ptr,
+                                    umf_memory_tracker_handle_t tracker,
+                                    umf_alloc_info_t *pAllocInfo) {
+    assert(ptr);
+    assert(pAllocInfo);
 
-umf_memory_tracker_handle_t umfMemoryTrackerCreate(void) {
-    umf_memory_tracker_handle_t handle =
-        umf_ba_global_alloc(sizeof(struct umf_memory_tracker_t));
-    if (!handle) {
-        return NULL;
+    if (tracker == NULL) {
+        LOG_ERR("tracker is NULL");
+        return UMF_RESULT_ERROR_NOT_SUPPORTED;
     }
 
-    umf_ba_pool_t *tracker_allocator =
-        umf_ba_create(sizeof(struct tracker_value_t));
-    if (!tracker_allocator) {
-        goto err_free_handle;
+    if (tracker->map == NULL) {
+        LOG_ERR("tracker's map is not created");
+        return UMF_RESULT_ERROR_NOT_SUPPORTED;
     }
 
-    handle->tracker_allocator = tracker_allocator;
-
-    void *mutex_ptr = utils_mutex_init(&handle->splitMergeMutex);
-    if (!mutex_ptr) {
-        goto err_destroy_tracker_allocator;
+    uintptr_t rkey;
+    umf_tracker_value_t *rvalue;
+    int found = critnib_find(tracker->map, (uintptr_t)ptr, FIND_LE,
+                             (void *)&rkey, (void **)&rvalue);
+    if (!found || (uintptr_t)ptr >= rkey + rvalue->size) {
+        LOG_WARN("pointer %p not found in the tracker, tracker=%p", ptr,
+                 (void *)tracker);
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    handle->map = critnib_new();
-    if (!handle->map) {
-        goto err_destroy_mutex;
-    }
+    pAllocInfo->base = (void *)rkey;
+    pAllocInfo->baseSize = rvalue->size;
+    // TODO proxy pool?
+    pAllocInfo->pool = rvalue->pool;
 
-    LOG_DEBUG("tracker created, handle=%p, segment map=%p", (void *)handle,
-              (void *)handle->map);
-
-    return handle;
-
-err_destroy_mutex:
-    utils_mutex_destroy_not_free(&handle->splitMergeMutex);
-err_destroy_tracker_allocator:
-    umf_ba_destroy(tracker_allocator);
-err_free_handle:
-    umf_ba_global_free(handle);
-    return NULL;
-}
-
-void umfMemoryTrackerDestroy(umf_memory_tracker_handle_t handle) {
-    if (!handle) {
-        return;
-    }
-
-    // Do not destroy the tracker if we are running in the proxy library,
-    // because it may need those resources till
-    // the very end of exiting the application.
-    if (utils_is_running_in_proxy_lib()) {
-        return;
-    }
-
-    clear_tracker(handle);
-
-    // We have to zero all inner pointers,
-    // because the tracker handle can be copied
-    // and used in many places.
-    critnib_delete(handle->map);
-    handle->map = NULL;
-    utils_mutex_destroy_not_free(&handle->splitMergeMutex);
-    umf_ba_destroy(handle->tracker_allocator);
-    handle->tracker_allocator = NULL;
-    umf_ba_global_free(handle);
+    return UMF_RESULT_SUCCESS;
 }

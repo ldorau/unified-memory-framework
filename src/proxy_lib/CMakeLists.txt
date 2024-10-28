@@ -4,7 +4,8 @@
 
 include(${UMF_CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
-set(PROXY_SOURCES proxy_lib.c)
+# NOTE: consider putting the tracker-related code in a separate library
+set(PROXY_SOURCES proxy_lib.c ../tracker.c ../critnib/critnib.c)
 
 set(PROXY_SOURCES_LINUX proxy_lib_linux.c)
 

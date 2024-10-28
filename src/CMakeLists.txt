@@ -125,7 +125,8 @@ set(UMF_SOURCES
     critnib/critnib.c
     ravl/ravl.c
     pool/pool_proxy.c
-    pool/pool_scalable.c)
+    pool/pool_scalable.c
+    tracker.c)
 
 if(NOT UMF_DISABLE_HWLOC)
     set(UMF_SOURCES ${UMF_SOURCES} ${HWLOC_DEPENDENT_SOURCES}

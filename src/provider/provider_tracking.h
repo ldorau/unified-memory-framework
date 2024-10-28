@@ -20,45 +20,39 @@
 
 #include "base_alloc.h"
 #include "critnib.h"
+#include "tracker.h"
 #include "utils_concurrency.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-struct umf_memory_tracker_t {
-    umf_ba_pool_t *tracker_allocator;
-    critnib *map;
-    utils_mutex_t splitMergeMutex;
-};
-
-typedef struct umf_memory_tracker_t *umf_memory_tracker_handle_t;
-
-extern umf_memory_tracker_handle_t TRACKER;
-
-umf_memory_tracker_handle_t umfMemoryTrackerCreate(void);
-void umfMemoryTrackerDestroy(umf_memory_tracker_handle_t handle);
-
-umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr);
-
-typedef struct umf_alloc_info_t {
-    void *base;
-    size_t baseSize;
+typedef struct umf_tracking_memory_provider_t {
+    umf_memory_provider_handle_t hUpstream;
+    umf_memory_tracker_handle_t hTracker;
     umf_memory_pool_handle_t pool;
-} umf_alloc_info_t;
+    critnib *ipcCache;
 
-umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
-                                          umf_alloc_info_t *pAllocInfo);
+    // the upstream provider does not support the free() operation
+    bool upstreamDoesNotFree;
+} umf_tracking_memory_provider_t;
 
-// Creates a memory provider that tracks each allocation/deallocation through umf_memory_tracker_handle_t and
-// forwards all requests to hUpstream memory Provider. hUpstream lifetime should be managed by the user of this function.
+typedef struct umf_tracking_memory_provider_t umf_tracking_memory_provider_t;
+
+// Creates a memory provider that tracks each allocation/deallocation through
+// umf_memory_tracker_handle_t and forwards all requests to hUpstream memory
+// Provider. hUpstream lifetime should be managed by the user of this function.
+// The tracker param is optional - if NULL is passed, the default one is used
 umf_result_t umfTrackingMemoryProviderCreate(
     umf_memory_provider_handle_t hUpstream, umf_memory_pool_handle_t hPool,
-    umf_memory_provider_handle_t *hTrackingProvider, bool upstreamDoesNotFree);
+    umf_memory_provider_handle_t *hTrackingProvider,
+    umf_memory_tracker_handle_t tracker, bool upstreamDoesNotFree);
 
 void umfTrackingMemoryProviderGetUpstreamProvider(
     umf_memory_provider_handle_t hTrackingProvider,
     umf_memory_provider_handle_t *hUpstream);
+
+umf_memory_provider_ops_t *umfTrackingMemoryProviderOps(void);
 
 #ifdef __cplusplus
 }

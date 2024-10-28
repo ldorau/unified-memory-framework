@@ -31,6 +31,21 @@ static umf_result_t umfPoolCreateInternal(const umf_memory_pool_ops_t *ops,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
+    // NOTE: UMF_POOL_CREATE_FLAG_RESERVED is used when we want to create a
+    // pool with non-default tracker (passed in params)
+
+    if ((flags & UMF_POOL_CREATE_FLAG_DISABLE_TRACKING) &&
+        (flags & UMF_POOL_CREATE_FLAG_RESERVED)) {
+        // setting both flags is invalid
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    if (flags == UMF_POOL_CREATE_FLAG_RESERVED && params == NULL) {
+        // if UMF_POOL_CREATE_FLAG_RESERVED flag is set the valid tracker
+        // should be passed in params
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     umf_result_t ret = UMF_RESULT_SUCCESS;
     umf_memory_pool_handle_t pool =
         umf_ba_global_alloc(sizeof(umf_memory_pool_t));
@@ -40,12 +55,24 @@ static umf_result_t umfPoolCreateInternal(const umf_memory_pool_ops_t *ops,
 
     assert(ops->version == UMF_VERSION_CURRENT);
 
+    umf_memory_tracker_handle_t tracker = NULL;
+    if (flags == UMF_POOL_CREATE_FLAG_RESERVED) {
+        // if UMF_POOL_CREATE_FLAG_RESERVED is set use the tracker from params
+        tracker = params;
+    }
+
     if (!(flags & UMF_POOL_CREATE_FLAG_DISABLE_TRACKING)) {
-        // Wrap provider with memory tracking provider.
+        // Wrap provider with memory tracking provider
+        if (tracker == NULL) {
+            // if UMF_POOL_CREATE_FLAG_PROXY_POOL is disabled use the default
+            // tracker
+            tracker = umfMemoryTrackerGet();
+        }
+
         // Check if the provider supports the free() operation.
         bool upstreamDoesNotFree = umfIsFreeOpDefault(provider);
         ret = umfTrackingMemoryProviderCreate(provider, pool, &pool->provider,
-                                              upstreamDoesNotFree);
+                                              tracker, upstreamDoesNotFree);
         if (ret != UMF_RESULT_SUCCESS) {
             goto err_provider_create;
         }
