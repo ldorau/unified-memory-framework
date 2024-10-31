@@ -61,11 +61,11 @@ jobs:
 
       - name: Run "ctest --output-on-failure" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
 
       - name: Run "./test/umf_test-memoryPool" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
 
       - name: Run "/usr/bin/ls" with proxy library
         working-directory: ${{env.BUILD_DIR}}
