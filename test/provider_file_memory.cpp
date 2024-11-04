@@ -11,7 +11,12 @@
 #endif
 
 #include <umf/memory_provider.h>
+#include <umf/pools/pool_jemalloc.h>
 #include <umf/providers/provider_file_memory.h>
+
+#define UMF_TEST_PROVIDER_FREE_NOT_SUPPORTED 1
+#include "ipcFixtures.hpp"
+#undef UMF_TEST_PROVIDER_FREE_NOT_SUPPORTED
 
 using umf_test::test;
 
@@ -458,3 +463,15 @@ TEST_P(FileProviderParamsShared, IPC_file_not_exist) {
     umf_result = umfMemoryProviderFree(provider.get(), ptr, size);
     ASSERT_EQ(umf_result, UMF_RESULT_ERROR_NOT_SUPPORTED);
 }
+
+HostMemoryAccessor hostAccessor;
+
+static std::vector<ipcTestParams> ipcProxyPoolTestParamsList = {
+    {umfProxyPoolOps(), nullptr, umfFileMemoryProviderOps(),
+     &file_params_shared, &hostAccessor, true},
+};
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(umfIpcTest);
+
+INSTANTIATE_TEST_SUITE_P(FileProviderProxyPoolTest, umfIpcTest,
+                         ::testing::ValuesIn(ipcProxyPoolTestParamsList));

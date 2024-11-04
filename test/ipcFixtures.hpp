@@ -539,7 +539,8 @@ TEST_P(umfIpcTest, ConcurrentOpenCloseHandles) {
     }
 
     pool.reset(nullptr);
-    EXPECT_EQ(stat.getCount, stat.allocCount);
+    // TODO: enale check below once cache for open IPC handles is implemented
+    // EXPECT_EQ(stat.getCount, stat.allocCount);
     EXPECT_EQ(stat.putCount, stat.getCount);
     // TODO: enale check below once cache for open IPC handles is implemented
     // EXPECT_EQ(stat.openCount, stat.allocCount);

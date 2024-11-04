@@ -262,6 +262,10 @@ if(LINUX AND (NOT UMF_DISABLE_HWLOC)) # OS-specific functions are implemented
     # This test requires Linux-only file memory provider
     if(UMF_POOL_JEMALLOC_ENABLED)
         add_umf_test(
+            NAME ipc_jemalloc_file
+            SRCS ipc_jemalloc_file.cpp
+            LIBS jemalloc_pool)
+        add_umf_test(
             NAME jemalloc_coarse_file
             SRCS pools/jemalloc_coarse_file.cpp malloc_compliance_tests.cpp
             LIBS jemalloc_pool)
