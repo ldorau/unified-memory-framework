@@ -269,6 +269,10 @@ if(LINUX AND (NOT UMF_DISABLE_HWLOC)) # OS-specific functions are implemented
             NAME jemalloc_coarse_devdax
             SRCS pools/jemalloc_coarse_devdax.cpp malloc_compliance_tests.cpp
             LIBS jemalloc_pool)
+        add_umf_test(
+            NAME ipc_jemalloc_devdax
+            SRCS pools/ipc_jemalloc_devdax.cpp
+            LIBS jemalloc_pool)
     endif()
 
     # This test requires Linux-only file memory provider
@@ -279,6 +283,8 @@ if(LINUX AND (NOT UMF_DISABLE_HWLOC)) # OS-specific functions are implemented
         add_umf_test(
             NAME scalable_coarse_devdax SRCS pools/scalable_coarse_devdax.cpp
                                              malloc_compliance_tests.cpp)
+        add_umf_test(NAME ipc_scalable_devdax
+                     SRCS pools/ipc_scalable_devdax.cpp)
     endif()
 
     if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UMF_BUILD_FUZZTESTS)
