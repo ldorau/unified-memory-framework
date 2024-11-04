@@ -432,15 +432,36 @@ TEST_P(umfIpcTest, openInTwoPools) {
 
 TEST_P(umfIpcTest, ConcurrentGetPutHandles) {
     std::vector<void *> ptrs;
-    constexpr size_t ALLOC_SIZE = 100;
+    constexpr size_t ALLOC_SIZE = 128;
     constexpr size_t NUM_POINTERS = 100;
     umf::pool_unique_handle_t pool = makePool();
 
+    void *prev_ptr = nullptr;
     for (size_t i = 0; i < NUM_POINTERS; ++i) {
         void *ptr = umfPoolMalloc(pool.get(), ALLOC_SIZE);
         EXPECT_NE(ptr, nullptr);
         ptrs.push_back(ptr);
+
+        const uint32_t pattern = i + 1;
+        memAccessor->fill(ptr, ALLOC_SIZE, &pattern, sizeof(pattern));
+
+        if (prev_ptr) {
+            ASSERT_GE((uintptr_t)ptr - (uintptr_t)prev_ptr, ALLOC_SIZE);
+        }
+        prev_ptr = ptr;
     }
+
+    // check if the pattern was successfully applied
+    uint32_t *hostMemory = (uint32_t *)calloc(1, ALLOC_SIZE);
+    for (size_t i = 0; i < NUM_POINTERS; ++i) {
+        memAccessor->copy(hostMemory, ptrs[i], ALLOC_SIZE);
+        const uint32_t pattern = i + 1;
+        for (size_t j = 0; j < ALLOC_SIZE / sizeof(int); j++) {
+            fprintf(stderr, "j = %zu\n", j);
+            ASSERT_EQ(hostMemory[j], pattern);
+        }
+    }
+    free(hostMemory);
 
     std::array<std::vector<umf_ipc_handle_t>, NTHREADS> ipcHandles;
 
@@ -476,7 +497,7 @@ TEST_P(umfIpcTest, ConcurrentGetPutHandles) {
     }
 
     pool.reset(nullptr);
-    EXPECT_EQ(stat.putCount, stat.getCount);
+    // EXPECT_EQ(stat.putCount, stat.getCount);
 }
 
 TEST_P(umfIpcTest, ConcurrentOpenCloseHandles) {

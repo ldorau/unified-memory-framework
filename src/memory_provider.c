@@ -347,6 +347,13 @@ umfMemoryProviderAllocationMerge(umf_memory_provider_handle_t hProvider,
 umf_result_t
 umfMemoryProviderGetIPCHandleSize(umf_memory_provider_handle_t hProvider,
                                   size_t *size) {
+    if (!hProvider || !hProvider->ops.ipc.get_ipc_handle_size) {
+        if (size) {
+            *size = 0;
+        }
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
     return hProvider->ops.ipc.get_ipc_handle_size(hProvider->provider_priv,
                                                   size);
 }
