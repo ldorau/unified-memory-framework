@@ -288,7 +288,6 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 void *malloc(size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
-        LOG_DEBUG("Proxy Lib: calling umfPoolMalloc size=%zu", size);
         void *ptr = umfPoolMalloc(Proxy_pool, size);
         was_called_from_umfPool = 0;
         return ptr;
@@ -300,8 +299,6 @@ void *malloc(size_t size) {
 void *calloc(size_t nmemb, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
-        LOG_DEBUG("Proxy Lib: calling umfPoolCalloc nmemb=%zu, size=%zu", nmemb,
-                  size);
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
         was_called_from_umfPool = 0;
         return ptr;
@@ -320,7 +317,6 @@ void free(void *ptr) {
     }
 
     if (Proxy_pool) {
-        LOG_DEBUG("Proxy Lib: calling umfPoolFree ptr=%p", ptr);
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
             LOG_ERR("umfPoolFree() failed");
             assert(0);
@@ -349,8 +345,6 @@ void *realloc(void *ptr, size_t size) {
 
     if (Proxy_pool) {
         was_called_from_umfPool = 1;
-        LOG_DEBUG("Proxy Lib: calling umfPoolRealloc ptr=%p, size=%zu", ptr,
-                  size);
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
         was_called_from_umfPool = 0;
         return new_ptr;
@@ -363,9 +357,6 @@ void *realloc(void *ptr, size_t size) {
 void *aligned_alloc(size_t alignment, size_t size) {
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
-        LOG_DEBUG(
-            "Proxy Lib: calling umfPoolAlignedMalloc size=%zu, alignment=%zu",
-            size, alignment);
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
         was_called_from_umfPool = 0;
         return ptr;
@@ -387,7 +378,6 @@ size_t malloc_usable_size(void *ptr) {
 
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
-        LOG_DEBUG("Proxy Lib: calling umfPoolMallocUsableSize ptr=%p", ptr);
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
         was_called_from_umfPool = 0;
         return size;
