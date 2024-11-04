@@ -578,6 +578,8 @@ typedef struct file_ipc_data_t {
     char path[PATH_MAX];
     size_t offset_fd;
     size_t size;
+    unsigned protection; // combination of OS-specific protection flags
+    unsigned visibility; // memory visibility mode
 } file_ipc_data_t;
 
 static umf_result_t file_get_ipc_handle_size(void *provider, size_t *size) {
@@ -623,6 +625,8 @@ static umf_result_t file_get_ipc_handle(void *provider, const void *ptr,
     file_ipc_data->size = size;
     strncpy(file_ipc_data->path, file_provider->path, PATH_MAX - 1);
     file_ipc_data->path[PATH_MAX - 1] = '\0';
+    file_ipc_data->protection = file_provider->protection;
+    file_ipc_data->visibility = file_provider->visibility;
 
     return UMF_RESULT_SUCCESS;
 }
@@ -672,15 +676,34 @@ static umf_result_t file_open_ipc_handle(void *provider, void *providerIpcData,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    *ptr = utils_mmap_file(NULL, file_ipc_data->size, file_provider->protection,
-                           file_provider->visibility, fd,
-                           file_ipc_data->offset_fd);
+    // get the page size
+    size_t page_size;
+    (void)file_get_min_page_size(provider, NULL, &page_size);
+
+    // length and offset passed to mmap() have to be page-aligned
+    size_t offset_aligned = file_ipc_data->offset_fd;
+    size_t size_aligned = file_ipc_data->size;
+    utils_align_ptr_down_size_up((void **)&offset_aligned, &size_aligned,
+                                 page_size);
+
+    char *addr = utils_mmap_file(NULL, size_aligned, file_ipc_data->protection,
+                                 file_ipc_data->visibility, fd, offset_aligned);
     (void)utils_close_fd(fd);
-    if (*ptr == NULL) {
+    if (addr == NULL) {
         file_store_last_native_error(UMF_FILE_RESULT_ERROR_ALLOC_FAILED, errno);
-        LOG_PERR("memory mapping failed");
-        ret = UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
+        LOG_PERR("file mapping failed (path: %s, size: %zu, protection: %i, "
+                 "fd: %i, offset: %zu)",
+                 file_ipc_data->path, size_aligned, file_ipc_data->protection,
+                 fd, offset_aligned);
+        return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;
     }
+
+    *ptr = addr + (file_ipc_data->offset_fd - offset_aligned);
+
+    LOG_DEBUG("file mapped (path: %s, size: %zu, protection: %i, fd: %i, "
+              "offset: %zu) at address %p",
+              file_ipc_data->path, size_aligned, file_ipc_data->protection, fd,
+              offset_aligned, *ptr);
 
     return ret;
 }
@@ -697,6 +720,13 @@ static umf_result_t file_close_ipc_handle(void *provider, void *ptr,
                 "UMF_MEM_MAP_SYNC")
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
+
+    // get the page size
+    size_t page_size;
+    (void)file_get_min_page_size(provider, ptr, &page_size);
+
+    // ptr and size passed to munmap() have to be page-aligned in case of /dev/dax device
+    utils_align_ptr_down_size_up(&ptr, &size, page_size);
 
     errno = 0;
     int ret = utils_munmap(ptr, size);
