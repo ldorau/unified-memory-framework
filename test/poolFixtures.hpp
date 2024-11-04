@@ -150,7 +150,7 @@ TEST_P(umfPoolTest, allocFreeNonAlignedSizes) {
         umfPoolFree(pool.get(), ptr);
     }
 }
-
+//*
 TEST_P(umfPoolTest, reallocFree) {
     if (!umf_test::isReallocSupported(pool.get())) {
         GTEST_SKIP();
@@ -179,7 +179,7 @@ TEST_P(umfPoolTest, callocFree) {
     }
     umfPoolFree(pool.get(), ptr);
 }
-
+//*/
 void pow2AlignedAllocHelper(umf_memory_pool_handle_t pool) {
     if (!umf_test::isAlignedAllocSupported(pool)) {
         GTEST_SKIP();
@@ -218,6 +218,7 @@ TEST_P(umfPoolTest, freeNullptr) {
     ASSERT_EQ(ret, UMF_RESULT_SUCCESS);
 }
 
+//*
 TEST_P(umfPoolTest, multiThreadedMallocFree) {
     static constexpr size_t allocSize = 64;
     auto poolMalloc = [](size_t inAllocSize, umf_memory_pool_handle_t inPool) {
@@ -263,7 +264,8 @@ TEST_P(umfPoolTest, multiThreadedpow2AlignedAlloc) {
     }
 #endif
 }
-
+//*/
+//*
 TEST_P(umfPoolTest, multiThreadedReallocFree) {
     if (!umf_test::isReallocSupported(pool.get())) {
         GTEST_SKIP();
@@ -296,7 +298,8 @@ TEST_P(umfPoolTest, multiThreadedReallocFree) {
         thread.join();
     }
 }
-
+//*/
+//*
 TEST_P(umfPoolTest, multiThreadedCallocFree) {
     if (!umf_test::isCallocSupported(pool.get())) {
         GTEST_SKIP();
@@ -326,7 +329,8 @@ TEST_P(umfPoolTest, multiThreadedCallocFree) {
         thread.join();
     }
 }
-
+//*/
+//*
 TEST_P(umfPoolTest, multiThreadedMallocFreeRandomSizes) {
     auto poolMalloc = [](size_t allocSize, umf_memory_pool_handle_t inPool) {
         std::vector<void *> allocations;
@@ -391,7 +395,7 @@ TEST_P(umfMemTest, outOfMem) {
         umfPoolFree(hPool, allocation);
     }
 }
-
+//*/
 // TODO: add similar tests for realloc/aligned_alloc, etc.
 // TODO: add multithreaded tests
 TEST_P(umfMultiPoolTest, memoryTracking) {

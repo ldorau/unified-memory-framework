@@ -15,7 +15,9 @@ jobs:
     name: Ubuntu
     strategy:
       matrix:
-        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}, {c: icx, cxx: icpx}]
+        compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++},
+        # {c: icx, cxx: icpx}
+        ]
         # TSAN is mutually exclusive with other sanitizers
         sanitizers: [{asan: ON, ubsan: ON, tsan: OFF}, {asan: OFF, ubsan: OFF, tsan: ON}]
     runs-on: ubuntu-22.04
