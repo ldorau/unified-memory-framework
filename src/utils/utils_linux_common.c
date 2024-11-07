@@ -9,6 +9,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -46,8 +47,12 @@ utils_translate_mem_visibility_flag(umf_memory_visibility_t in_flag,
  * did not specify it by himself it tries to mmap with (flags | MAP_SHARED).
  */
 void *utils_mmap_file(void *hint_addr, size_t length, int prot, int flags,
-                      int fd, size_t fd_offset) {
+                      int fd, size_t fd_offset, bool *map_sync) {
     void *addr;
+
+    if (map_sync) {
+        *map_sync = false;
+    }
 
     /*
      * MAP_PRIVATE and MAP_SHARED are mutually exclusive,
@@ -80,6 +85,11 @@ void *utils_mmap_file(void *hint_addr, size_t length, int prot, int flags,
             LOG_DEBUG("file mapped with the MAP_SYNC flag (fd=%i, offset=%zu, "
                       "length=%zu)",
                       fd, fd_offset, length);
+
+            if (map_sync) {
+                *map_sync = true;
+            }
+
             return addr;
         }
 
