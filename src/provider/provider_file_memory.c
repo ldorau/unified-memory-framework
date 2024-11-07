@@ -134,8 +134,6 @@ static umf_result_t file_initialize(void *params, void **provider) {
     umf_file_memory_provider_params_t *in_params =
         (umf_file_memory_provider_params_t *)params;
 
-    size_t page_size = utils_get_page_size();
-
     if (in_params->path == NULL) {
         LOG_ERR("file path is missing");
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
@@ -148,8 +146,6 @@ static umf_result_t file_initialize(void *params, void **provider) {
     }
 
     memset(file_provider, 0, sizeof(*file_provider));
-
-    file_provider->page_size = page_size;
 
     ret = file_translate_params(in_params, file_provider);
     if (ret != UMF_RESULT_SUCCESS) {
@@ -194,6 +190,12 @@ static umf_result_t file_initialize(void *params, void **provider) {
             ret = UMF_RESULT_ERROR_UNKNOWN;
             goto err_close_fd;
         }
+    }
+
+    if (file_provider->is_fsdax) {
+        file_provider->page_size = FSDAX_PAGE_SIZE_2MB;
+    } else {
+        file_provider->page_size = utils_get_page_size();
     }
 
     if (utils_mutex_init(&file_provider->lock) == NULL) {
