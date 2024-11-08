@@ -142,15 +142,28 @@ static umf_result_t devdax_initialize(void *params, void **provider) {
     unsigned map_sync_flag = 0;
     utils_translate_mem_visibility_flag(UMF_MEM_MAP_SYNC, &map_sync_flag);
 
+    bool is_dax = false;
+
     // mmap /dev/dax with the MAP_SYNC xor MAP_SHARED flag (if MAP_SYNC fails)
     devdax_provider->base = utils_mmap_file(
         NULL, devdax_provider->size, devdax_provider->protection, map_sync_flag,
-        fd, 0 /* offset */, NULL);
+        fd, 0 /* offset */, &is_dax);
     utils_close_fd(fd);
     if (devdax_provider->base == NULL) {
-        LOG_PDEBUG("devdax memory mapping failed (path=%s, size=%zu)",
+        LOG_PDEBUG("mapping the devdax failed (path=%s, size=%zu)",
                    in_params->path, devdax_provider->size);
         ret = UMF_RESULT_ERROR_UNKNOWN;
+        goto err_free_devdax_provider;
+    }
+
+    if (!is_dax) {
+        LOG_ERR("mapping the devdax with MAP_SYNC failed: %s", in_params->path);
+        ret = UMF_RESULT_ERROR_UNKNOWN;
+
+        if (devdax_provider->base) {
+            utils_munmap(devdax_provider->base, devdax_provider->size);
+        }
+
         goto err_free_devdax_provider;
     }
 
