@@ -27,6 +27,12 @@
  * - _aligned_offset_recalloc()
  */
 
+#ifndef _WIN32
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#undef _GNU_SOURCE
+#endif /* _WIN32 */
+
 #if (defined PROXY_LIB_USES_JEMALLOC_POOL)
 #include <umf/pools/pool_jemalloc.h>
 #define umfPoolManagerOps umfJemallocPoolOps
@@ -103,18 +109,52 @@ static umf_memory_pool_handle_t Proxy_pool = NULL;
 // it protects us from recursion in umfPool*()
 static __TLS int was_called_from_umfPool = 0;
 
+typedef void *(*system_aligned_alloc_t)(size_t alignment, size_t size);
+typedef void *(*system_calloc_t)(size_t nmemb, size_t size);
+typedef void (*system_free_t)(void *ptr);
+typedef void *(*system_malloc_t)(size_t size);
+typedef size_t (*system_malloc_usable_size_t)(void *ptr);
+typedef void *(*system_realloc_t)(void *ptr, size_t size);
+
+static system_aligned_alloc_t system_aligned_alloc;
+static system_calloc_t system_calloc;
+static system_free_t system_free;
+static system_malloc_t system_malloc;
+static system_malloc_usable_size_t system_malloc_usable_size;
+static system_realloc_t system_realloc;
+static size_t threshold_value = 0;
+
 /*****************************************************************************/
 /*** The constructor and destructor of the proxy library *********************/
 /*****************************************************************************/
 
 void proxy_lib_create_common(void) {
     utils_log_init();
+
     umf_os_memory_provider_params_t os_params =
         umfOsMemoryProviderParamsDefault();
     umf_result_t umf_result;
 
 #ifndef _WIN32
     char shm_name[NAME_MAX];
+
+    *((void **)(&system_aligned_alloc)) = dlsym(RTLD_NEXT, "aligned_alloc");
+    *((void **)(&system_calloc)) = dlsym(RTLD_NEXT, "calloc");
+    *((void **)(&system_free)) = dlsym(RTLD_NEXT, "free");
+    *((void **)(&system_malloc)) = dlsym(RTLD_NEXT, "malloc");
+    *((void **)(&system_malloc_usable_size)) =
+        dlsym(RTLD_NEXT, "malloc_usable_size");
+    *((void **)(&system_realloc)) = dlsym(RTLD_NEXT, "realloc");
+
+    if (system_aligned_alloc && system_calloc && system_free && system_malloc &&
+        system_malloc_usable_size && system_realloc) {
+        threshold_value = 128;
+        LOG_DEBUG(
+            "proxy_lib: all system hooks initialized, threshold_value = %zu",
+            threshold_value);
+    } else {
+        LOG_WARN("proxy_lib: NOT all system hooks initialized");
+    }
 
     if (utils_env_var_has_str("UMF_PROXY", "page.disposition=shared-fd")) {
         LOG_DEBUG("proxy_lib: using the MAP_SHARED visibility mode with the "
@@ -152,8 +192,10 @@ void proxy_lib_create_common(void) {
         LOG_ERR("creating UMF pool manager failed");
         exit(-1);
     }
+
     // The UMF pool has just been created (Proxy_pool != NULL). Stop using
     // the linear allocator and start using the UMF pool allocator from now on.
+    LOG_DEBUG("proxy_lib initialized");
 }
 
 void proxy_lib_destroy_common(void) {
@@ -249,6 +291,10 @@ static inline size_t ba_leak_pool_contains_pointer(void *ptr) {
 /*****************************************************************************/
 
 void *malloc(size_t size) {
+    if (size < threshold_value) {
+        return system_malloc(size);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolMalloc(Proxy_pool, size);
@@ -260,6 +306,10 @@ void *malloc(size_t size) {
 }
 
 void *calloc(size_t nmemb, size_t size) {
+    if ((nmemb * size) < threshold_value) {
+        return system_calloc(nmemb, size);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolCalloc(Proxy_pool, nmemb, size);
@@ -279,12 +329,16 @@ void free(void *ptr) {
         return;
     }
 
-    if (Proxy_pool) {
+    if (Proxy_pool && (umfPoolByPtr(ptr) == Proxy_pool)) {
         if (umfPoolFree(Proxy_pool, ptr) != UMF_RESULT_SUCCESS) {
             LOG_ERR("umfPoolFree() failed");
             assert(0);
         }
         return;
+    }
+
+    if (threshold_value) {
+        system_free(ptr);
     }
 
     assert(0);
@@ -306,11 +360,15 @@ void *realloc(void *ptr, size_t size) {
         return ba_leak_realloc(ptr, size, leak_pool_contains_pointer);
     }
 
-    if (Proxy_pool) {
+    if (Proxy_pool && (umfPoolByPtr(ptr) == Proxy_pool)) {
         was_called_from_umfPool = 1;
         void *new_ptr = umfPoolRealloc(Proxy_pool, ptr, size);
         was_called_from_umfPool = 0;
         return new_ptr;
+    }
+
+    if (threshold_value) {
+        return system_realloc(ptr, size);
     }
 
     assert(0);
@@ -318,6 +376,10 @@ void *realloc(void *ptr, size_t size) {
 }
 
 void *aligned_alloc(size_t alignment, size_t size) {
+    if (size < threshold_value) {
+        return system_aligned_alloc(alignment, size);
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         void *ptr = umfPoolAlignedMalloc(Proxy_pool, size, alignment);
@@ -339,11 +401,20 @@ size_t malloc_usable_size(void *ptr) {
         return 0xDEADBEEF;
     }
 
+    size_t leak_pool_contains_pointer = ba_leak_pool_contains_pointer(ptr);
+    if (leak_pool_contains_pointer) {
+        return leak_pool_contains_pointer;
+    }
+
     if (!was_called_from_umfPool && Proxy_pool) {
         was_called_from_umfPool = 1;
         size_t size = umfPoolMallocUsableSize(Proxy_pool, ptr);
         was_called_from_umfPool = 0;
         return size;
+    }
+
+    if (threshold_value) {
+        return system_malloc_usable_size(ptr);
     }
 
     return 0; // unsupported in this case

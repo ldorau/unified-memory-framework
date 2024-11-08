@@ -120,9 +120,8 @@ umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
     int found = critnib_find(TRACKER->map, (uintptr_t)ptr, FIND_LE,
                              (void *)&rkey, (void **)&rvalue);
     if (!found || (uintptr_t)ptr >= rkey + rvalue->size) {
-        LOG_WARN("pointer %p not found in the "
-                 "tracker, TRACKER=%p",
-                 ptr, (void *)TRACKER);
+        LOG_DEBUG("pointer %p not found in the tracker, TRACKER=%p", ptr,
+                  (void *)TRACKER);
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
