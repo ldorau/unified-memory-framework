@@ -17,6 +17,7 @@ jobs:
     name: Ubuntu
 
     strategy:
+      fail-fast: false
       matrix:
         build_type: [Release, Debug]
         compiler: [{c: gcc, cxx: g++}]
@@ -63,19 +64,19 @@ jobs:
       # see the issue: https://github.com/oneapi-src/unified-memory-framework/issues/864
       - name: Run "ctest --output-on-failure" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure -E provider_file_memory_ipc
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure -E provider_file_memory_ipc
 
       - name: Run "./test/umf_test-memoryPool" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" LD_PRELOAD=./lib/libumf_proxy.so ./test/umf_test-memoryPool
 
       - name: Run "/usr/bin/ls" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-fd" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" UMF_PROXY="page.disposition=shared-fd" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
 
       - name: Run "/usr/bin/date" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-shm" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
+        run: UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" UMF_PROXY="page.disposition=shared-shm" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
 
       - name: Check coverage
         if:  ${{ matrix.build_type == 'Debug' }}
