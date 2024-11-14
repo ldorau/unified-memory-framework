@@ -633,9 +633,7 @@ static umf_result_t file_get_ipc_handle(void *provider, const void *ptr,
 
     void *value = critnib_get(file_provider->fd_offset_map, (uintptr_t)ptr);
     if (value == NULL) {
-        LOG_ERR("file_get_ipc_handle(): getting a value from the IPC cache "
-                "failed (addr=%p)",
-                ptr);
+        LOG_ERR("getting a value from the IPC cache failed (addr=%p)", ptr);
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
