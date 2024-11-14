@@ -14,6 +14,9 @@
 #include <umf/memory_pool.h>
 #include <umf/memory_provider.h>
 #include <umf/pools/pool_proxy.h>
+#include <umf/providers/provider_coarse.h>
+#include <umf/providers/provider_devdax_memory.h>
+#include <umf/providers/provider_file_memory.h>
 
 #include <cstring>
 #include <numeric>
@@ -79,6 +82,22 @@ struct umfIpcTest : umf_test::test,
         auto ret =
             umfMemoryProviderCreate(providerOps, providerParams, &hProvider);
         EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+
+        if (providerOps == umfDevDaxMemoryProviderOps() ||
+            providerOps == umfFileMemoryProviderOps()) {
+            coarse_memory_provider_params_t coarseParams =
+                umfCoarseMemoryProviderParamsDefault();
+            coarseParams.upstream_memory_provider = hProvider;
+            coarseParams.destroy_upstream_memory_provider = true;
+
+            umf_memory_provider_handle_t coarse_provider = nullptr;
+            ret = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
+                                          &coarseParams, &coarse_provider);
+            EXPECT_EQ(ret, UMF_RESULT_SUCCESS);
+            EXPECT_NE(coarse_provider, nullptr);
+
+            hProvider = coarse_provider;
+        }
 
         auto trace = [](void *trace_context, const char *name) {
             stats_type *stat = static_cast<stats_type *>(trace_context);
