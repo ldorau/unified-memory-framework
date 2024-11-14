@@ -17,6 +17,7 @@ jobs:
     name: Ubuntu
 
     strategy:
+      fail-fast: false
       matrix:
         build_type: [Release, Debug]
         compiler: [{c: gcc, cxx: g++}]
