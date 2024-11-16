@@ -158,18 +158,6 @@ static block_t *get_block_next(ravl_node_t *node) {
 }
 #endif /* NDEBUG */
 
-static ravl_node_t *get_origin_node(struct ravl *upstream_blocks,
-                                    block_t *block) {
-    ravl_data_t rdata = {(uintptr_t)block->data, NULL};
-    ravl_node_t *ravl_origin =
-        ravl_find(upstream_blocks, &rdata, RAVL_PREDICATE_LESS_EQUAL);
-    assert(ravl_origin);
-
-    block_t *origin = get_node_block(ravl_origin);
-    assert(IS_ORIGIN_OF_BLOCK(origin, block));
-    return ravl_origin;
-}
-
 static bool is_same_origin(struct ravl *upstream_blocks, block_t *block1,
                            block_t *block2) {
     ravl_data_t rdata1 = {(uintptr_t)block1->data, NULL};
@@ -468,11 +456,6 @@ static block_t *free_blocks_rm_node(struct ravl *free_blocks,
     return block;
 }
 
-static umf_result_t
-upstream_block_merge(coarse_memory_provider_t *coarse_provider,
-                     ravl_node_t *node1, ravl_node_t *node2,
-                     ravl_node_t **merged_node);
-
 // user_block_merge - merge two blocks from one of two lists of user blocks: all_blocks or free_blocks
 static umf_result_t user_block_merge(coarse_memory_provider_t *coarse_provider,
                                      ravl_node_t *node1, ravl_node_t *node2,
@@ -485,7 +468,6 @@ static umf_result_t user_block_merge(coarse_memory_provider_t *coarse_provider,
 
     *merged_node = NULL;
 
-    struct ravl *upstream_blocks = coarse_provider->upstream_blocks;
     struct ravl *all_blocks = coarse_provider->all_blocks;
     struct ravl *free_blocks = coarse_provider->free_blocks;
 
@@ -568,54 +550,6 @@ free_block_merge_with_next(coarse_memory_provider_t *coarse_provider,
     assert(merged_node != NULL);
 
     return merged_node;
-}
-
-// upstream_block_merge - merge the given two upstream blocks
-static umf_result_t
-upstream_block_merge(coarse_memory_provider_t *coarse_provider,
-                     ravl_node_t *node1, ravl_node_t *node2,
-                     ravl_node_t **merged_node) {
-    assert(node1);
-    assert(node2);
-    assert(merged_node);
-
-    *merged_node = NULL;
-
-    umf_memory_provider_handle_t upstream_provider =
-        coarse_provider->upstream_memory_provider;
-    if (!upstream_provider) {
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    block_t *block1 = get_node_block(node1);
-    block_t *block2 = get_node_block(node2);
-    assert(block1->data < block2->data);
-
-    bool contignous_data = (block1->data + block1->size == block2->data);
-    if (!contignous_data) {
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    // check if blocks can be merged by the upstream provider
-    umf_result_t merge_status = umfMemoryProviderAllocationMerge(
-        coarse_provider->upstream_memory_provider, block1->data, block2->data,
-        block1->size + block2->size);
-    if (merge_status != UMF_RESULT_SUCCESS) {
-        return merge_status;
-    }
-
-    // update the size
-    block1->size += block2->size;
-
-    struct ravl *upstream_blocks = coarse_provider->upstream_blocks;
-    block_t *block_rm = coarse_ravl_rm(upstream_blocks, block2->data);
-    assert(block_rm == block2);
-    (void)block_rm; // WA for unused variable error
-    umf_ba_global_free(block2);
-
-    *merged_node = node1;
-
-    return UMF_RESULT_SUCCESS;
 }
 
 #ifndef NDEBUG // begin of DEBUG code
