@@ -42,9 +42,6 @@ typedef struct coarse_memory_provider_t {
     size_t used_size;
     size_t alloc_size;
 
-    // upstream_blocks - tree of all blocks allocated from the upstream provider
-    struct ravl *upstream_blocks;
-
     // all_blocks - tree of all blocks - sorted by an address of data
     struct ravl *all_blocks;
 
@@ -158,21 +155,7 @@ static block_t *get_block_next(ravl_node_t *node) {
 }
 #endif /* NDEBUG */
 
-static bool is_same_origin(struct ravl *upstream_blocks, block_t *block1,
-                           block_t *block2) {
-    ravl_data_t rdata1 = {(uintptr_t)block1->data, NULL};
-    ravl_node_t *ravl_origin1 =
-        ravl_find(upstream_blocks, &rdata1, RAVL_PREDICATE_LESS_EQUAL);
-    assert(ravl_origin1);
-
-    block_t *origin1 = get_node_block(ravl_origin1);
-    assert(IS_ORIGIN_OF_BLOCK(origin1, block1));
-
-    return (IS_ORIGIN_OF_BLOCK(origin1, block2));
-}
-
-// The functions "coarse_ravl_*" handle lists of blocks:
-// - coarse_provider->all_blocks and coarse_provider->upstream_blocks
+// The functions "coarse_ravl_*" handles the coarse_provider->all_blocks list of blocks
 // sorted by a pointer (block_t->data) to the beginning of the block data.
 //
 // coarse_ravl_add_new - allocate and add a new block to the tree
@@ -560,8 +543,6 @@ typedef struct debug_cb_args_t {
     size_t sum_blocks_size;
     size_t num_all_blocks;
     size_t num_free_blocks;
-    size_t num_alloc_blocks;
-    size_t sum_alloc_size;
 } debug_cb_args_t;
 
 static void debug_verify_all_blocks_cb(void *data, void *arg) {
@@ -590,18 +571,6 @@ static void debug_verify_all_blocks_cb(void *data, void *arg) {
     assert(block->data);
     assert(block->size > 0);
 
-    // There shouldn't be two adjacent unused blocks
-    // if they are continuous and have the same origin.
-    if (block_prev && !block_prev->used && !block->used &&
-        (block_prev->data + block_prev->size == block->data)) {
-        assert(!is_same_origin(provider->upstream_blocks, block_prev, block));
-    }
-
-    if (block_next && !block_next->used && !block->used &&
-        (block->data + block->size == block_next->data)) {
-        assert(!is_same_origin(provider->upstream_blocks, block, block_next));
-    }
-
     // data addresses in the list are in ascending order
     if (block_prev) {
         assert(block_prev->data < block->data);
@@ -619,45 +588,6 @@ static void debug_verify_all_blocks_cb(void *data, void *arg) {
     cb_args->sum_blocks_size += block->size;
     if (block->used) {
         cb_args->sum_used += block->size;
-    }
-}
-
-static void debug_verify_upstream_blocks_cb(void *data, void *arg) {
-    assert(data);
-    assert(arg);
-
-    ravl_data_t *node_data = data;
-    block_t *alloc = node_data->value;
-    assert(alloc);
-
-    debug_cb_args_t *cb_args = (debug_cb_args_t *)arg;
-    coarse_memory_provider_t *provider = cb_args->provider;
-
-    ravl_node_t *node =
-        ravl_find(provider->upstream_blocks, data, RAVL_PREDICATE_EQUAL);
-    assert(node);
-
-    block_t *alloc_next = get_block_next(node);
-    block_t *alloc_prev = get_block_prev(node);
-
-    cb_args->num_alloc_blocks++;
-    cb_args->sum_alloc_size += alloc->size;
-
-    assert(alloc->data);
-    assert(alloc->size > 0);
-
-    // data addresses in the list are in ascending order
-    if (alloc_prev) {
-        assert(alloc_prev->data < alloc->data);
-    }
-
-    if (alloc_next) {
-        assert(alloc->data < alloc_next->data);
-    }
-
-    // data should not overlap
-    if (alloc_next) {
-        assert((alloc->data + alloc->size) <= alloc_next->data);
     }
 }
 
@@ -683,32 +613,16 @@ static bool debug_check(coarse_memory_provider_t *provider) {
     assert(cb_args.sum_blocks_size == provider->alloc_size);
     assert(provider->alloc_size >= provider->used_size);
 
-    // verify the upstream_blocks list
-    ravl_foreach(provider->upstream_blocks, debug_verify_upstream_blocks_cb,
-                 &cb_args);
-
-    assert(cb_args.sum_alloc_size == provider->alloc_size);
-    assert(cb_args.num_alloc_blocks == stats.num_upstream_blocks);
-
     return true;
 }
 #endif /* NDEBUG */ // end of DEBUG code
 
 static umf_result_t
-coarse_add_upstream_block(coarse_memory_provider_t *coarse_provider, void *addr,
-                          size_t size) {
-    ravl_node_t *alloc_node = NULL;
-
-    block_t *alloc = coarse_ravl_add_new(coarse_provider->upstream_blocks, addr,
-                                         size, &alloc_node);
-    if (alloc == NULL) {
-        return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
-
+coarse_add_new_block(coarse_memory_provider_t *coarse_provider, void *addr,
+                     size_t size) {
     block_t *new_block =
         coarse_ravl_add_new(coarse_provider->all_blocks, addr, size, NULL);
     if (new_block == NULL) {
-        coarse_ravl_rm(coarse_provider->upstream_blocks, addr);
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -830,18 +744,11 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
     // most of the error handling paths below set this error
     umf_result = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
-    coarse_provider->upstream_blocks =
-        ravl_new_sized(coarse_ravl_comp, sizeof(ravl_data_t));
-    if (coarse_provider->upstream_blocks == NULL) {
-        LOG_ERR("out of the host memory");
-        goto err_free_name;
-    }
-
     coarse_provider->free_blocks =
         ravl_new_sized(coarse_ravl_comp, sizeof(ravl_data_t));
     if (coarse_provider->free_blocks == NULL) {
         LOG_ERR("out of the host memory");
-        goto err_delete_ravl_upstream_blocks;
+        goto err_free_name;
     }
 
     coarse_provider->all_blocks =
@@ -874,9 +781,9 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
                                     coarse_params->init_buffer_size);
 
     } else if (coarse_params->init_buffer) {
-        umf_result = coarse_add_upstream_block(coarse_provider,
-                                               coarse_provider->init_buffer,
-                                               coarse_params->init_buffer_size);
+        umf_result =
+            coarse_add_new_block(coarse_provider, coarse_provider->init_buffer,
+                                 coarse_params->init_buffer_size);
         if (umf_result != UMF_RESULT_SUCCESS) {
             goto err_destroy_mutex;
         }
@@ -904,36 +811,11 @@ err_delete_ravl_all_blocks:
     ravl_delete(coarse_provider->all_blocks);
 err_delete_ravl_free_blocks:
     ravl_delete(coarse_provider->free_blocks);
-err_delete_ravl_upstream_blocks:
-    ravl_delete(coarse_provider->upstream_blocks);
 err_free_name:
     umf_ba_global_free(coarse_provider->name);
 err_free_coarse_provider:
     umf_ba_global_free(coarse_provider);
     return umf_result;
-}
-
-static void coarse_ravl_cb_rm_upstream_blocks_node(void *data, void *arg) {
-    assert(data);
-    assert(arg);
-
-    coarse_memory_provider_t *coarse_provider =
-        (struct coarse_memory_provider_t *)arg;
-    ravl_data_t *node_data = data;
-    block_t *alloc = node_data->value;
-    assert(alloc);
-
-    if (coarse_provider->upstream_memory_provider &&
-        !coarse_provider->disable_upstream_provider_free) {
-        // We continue to deallocate alloc blocks even if the upstream provider doesn't return success.
-        umfMemoryProviderFree(coarse_provider->upstream_memory_provider,
-                              alloc->data, alloc->size);
-    }
-
-    assert(coarse_provider->alloc_size >= alloc->size);
-    coarse_provider->alloc_size -= alloc->size;
-
-    umf_ba_global_free(alloc);
 }
 
 static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
@@ -945,6 +827,16 @@ static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
     ravl_data_t *node_data = data;
     block_t *block = node_data->value;
     assert(block);
+
+    if (coarse_provider->upstream_memory_provider &&
+        !coarse_provider->disable_upstream_provider_free) {
+        // we continue to deallocate blocks even if the upstream provider doesn't return success
+        umfMemoryProviderFree(coarse_provider->upstream_memory_provider,
+                              block->data, block->size);
+    }
+
+    assert(coarse_provider->alloc_size >= block->size);
+    coarse_provider->alloc_size -= block->size;
 
     if (block->used) {
         assert(coarse_provider->used_size >= block->size);
@@ -967,12 +859,8 @@ static void coarse_memory_provider_finalize(void *provider) {
     ravl_foreach(coarse_provider->all_blocks, coarse_ravl_cb_rm_all_blocks_node,
                  coarse_provider);
     assert(coarse_provider->used_size == 0);
-
-    ravl_foreach(coarse_provider->upstream_blocks,
-                 coarse_ravl_cb_rm_upstream_blocks_node, coarse_provider);
     assert(coarse_provider->alloc_size == 0);
 
-    ravl_delete(coarse_provider->upstream_blocks);
     ravl_delete(coarse_provider->all_blocks);
     ravl_delete(coarse_provider->free_blocks);
 
@@ -1207,7 +1095,7 @@ static umf_result_t coarse_memory_provider_alloc(void *provider, size_t size,
 
     ASSERT_IS_ALIGNED(((uintptr_t)(*resultPtr)), alignment);
 
-    umf_result = coarse_add_upstream_block(coarse_provider, *resultPtr, size);
+    umf_result = coarse_add_new_block(coarse_provider, *resultPtr, size);
     if (umf_result != UMF_RESULT_SUCCESS) {
         if (!coarse_provider->disable_upstream_provider_free) {
             umfMemoryProviderFree(coarse_provider->upstream_memory_provider,
@@ -1376,11 +1264,6 @@ coarse_memory_provider_get_stats(void *provider,
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
 
-    // count blocks
-    size_t num_upstream_blocks = 0;
-    ravl_foreach(coarse_provider->upstream_blocks, ravl_cb_count,
-                 &num_upstream_blocks);
-
     size_t num_all_blocks = 0;
     ravl_foreach(coarse_provider->all_blocks, ravl_cb_count, &num_all_blocks);
 
@@ -1390,7 +1273,6 @@ coarse_memory_provider_get_stats(void *provider,
 
     stats->alloc_size = coarse_provider->alloc_size;
     stats->used_size = coarse_provider->used_size;
-    stats->num_upstream_blocks = num_upstream_blocks;
     stats->num_all_blocks = num_all_blocks;
     stats->num_free_blocks = num_free_blocks;
 
