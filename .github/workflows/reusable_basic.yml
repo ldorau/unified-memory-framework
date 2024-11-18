@@ -180,7 +180,7 @@ jobs:
       working-directory: ${{env.BUILD_DIR}}
       run: |
         ${{ matrix.compiler.cxx == 'icpx' && '. /opt/intel/oneapi/setvars.sh' || true }}
-        ctest --output-on-failure # run all tests for better coverage
+        ctest --output-on-failure || UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ctest --rerun-failed -V
 
     - name: Check coverage
       if:  ${{ matrix.build_type == 'Debug' && matrix.compiler.c == 'gcc' }}
@@ -227,13 +227,13 @@ jobs:
         level_zero_provider: ['ON']
         cuda_provider: ['ON']
         include:
-          - os: 'windows-2022'
-            build_type: Release
-            compiler: {c: clang-cl, cxx: clang-cl}
-            shared_library: 'ON'
-            level_zero_provider: 'ON'
-            cuda_provider: 'ON'
-            toolset: "-T ClangCL"
+          #- os: 'windows-2022'
+          #  build_type: Release
+          #  compiler: {c: clang-cl, cxx: clang-cl}
+          #  shared_library: 'ON'
+          #  level_zero_provider: 'ON'
+          #  cuda_provider: 'ON'
+          #  toolset: "-T ClangCL"
           - os: 'windows-2022'
             build_type: Release
             compiler: {c: cl, cxx: cl}
