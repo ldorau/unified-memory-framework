@@ -562,9 +562,9 @@ static umf_result_t file_allocation_split(void *provider, void *ptr,
         return UMF_RESULT_ERROR_UNKNOWN;
     }
 
-    LOG_ERR("splitting the value from the file descriptor offset map (addr=%p) "
-            "from size %zu to %zu + %zu",
-            ptr, totalSize, firstSize, totalSize - firstSize);
+    LOG_DEBUG("split the value from the file descriptor offset map (addr=%p) "
+              "from size %zu to %zu + %zu",
+              ptr, totalSize, firstSize, totalSize - firstSize);
 
     uintptr_t new_key = (uintptr_t)ptr + firstSize;
     void *new_value = (void *)((uintptr_t)value + firstSize);

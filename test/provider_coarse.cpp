@@ -12,6 +12,7 @@
 #include <umf/providers/provider_coarse.h>
 #include <umf/providers/provider_file_memory.h>
 
+using umf_test::BA_GLOBAL_SPLIT_MERGE_OPS;
 using umf_test::KB;
 using umf_test::MB;
 using umf_test::test;
@@ -23,24 +24,6 @@ using umf_test::test;
 #define COARSE_NAME BASE_NAME " (" UPSTREAM_NAME ")"
 
 #define FILE_PATH ((char *)"tmp_file")
-
-struct provider_ba_global_split_merge : public umf_test::provider_ba_global {
-    const char *get_name() noexcept { return "umf_ba_global_split_merge"; }
-    umf_result_t allocation_merge([[maybe_unused]] void *lowPtr,
-                                  [[maybe_unused]] void *highPtr,
-                                  [[maybe_unused]] size_t totalSize) {
-        return UMF_RESULT_SUCCESS;
-    }
-
-    umf_result_t allocation_split([[maybe_unused]] void *ptr,
-                                  [[maybe_unused]] size_t totalSize,
-                                  [[maybe_unused]] size_t firstSize) {
-        return UMF_RESULT_SUCCESS;
-    }
-};
-
-umf_memory_provider_ops_t UMF_BA_GLOBAL_SPLIT_MERGE_OPS =
-    umf::providerMakeCOps<provider_ba_global_split_merge, void>();
 
 struct CoarseWithMemoryStrategyTest
     : umf_test::test,
@@ -63,7 +46,7 @@ TEST_F(test, coarseProvider_name_upstream) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -203,7 +186,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_1) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -240,7 +223,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_2) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -299,7 +282,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_4) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -440,7 +423,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -531,7 +514,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_negative) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
@@ -704,7 +687,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_purge_with_upstream) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
 
-    umf_result = umfMemoryProviderCreate(&UMF_BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
+    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
                                          &ba_global_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);

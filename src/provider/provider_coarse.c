@@ -466,6 +466,19 @@ static umf_result_t user_block_merge(coarse_memory_provider_t *coarse_provider,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
+    if (coarse_provider->upstream_memory_provider) {
+        // check if blocks can be merged by the upstream provider
+        umf_result_t umf_result = umfMemoryProviderAllocationMerge(
+            coarse_provider->upstream_memory_provider, block1->data,
+            block2->data, block1->size + block2->size);
+        if (umf_result != UMF_RESULT_SUCCESS) {
+            LOG_ERR("umfMemoryProviderAllocationMerge(lowPtr=%p, highPtr=%p, "
+                    "totalSize=%zu) failed",
+                    block1->data, block2->data, block1->size + block2->size);
+            return umf_result;
+        }
+    }
+
     if (block1->free_list_ptr) {
         free_blocks_rm_node(free_blocks, block1->free_list_ptr);
         block1->free_list_ptr = NULL;
@@ -893,8 +906,9 @@ create_aligned_block(coarse_memory_provider_t *coarse_provider,
                 coarse_provider->upstream_memory_provider, curr->data,
                 curr->size, padding);
             if (umf_result != UMF_RESULT_SUCCESS) {
-                LOG_ERR("umfMemoryProviderAllocationSplit(upstream_memory_"
-                        "provider) failed");
+                LOG_ERR("umfMemoryProviderAllocationSplit(ptr=%p, totalSize = "
+                        "%zu = (%zu + %zu)) failed",
+                        curr->data, curr->size, padding, curr->size - padding);
                 return umf_result;
             }
         }
@@ -926,6 +940,20 @@ create_aligned_block(coarse_memory_provider_t *coarse_provider,
 static umf_result_t
 split_current_block(coarse_memory_provider_t *coarse_provider, block_t *curr,
                     size_t size) {
+
+    if (coarse_provider->upstream_memory_provider) {
+        // check if blocks can be split by the upstream provider
+        umf_result_t umf_result = umfMemoryProviderAllocationSplit(
+            coarse_provider->upstream_memory_provider, curr->data, curr->size,
+            size);
+        if (umf_result != UMF_RESULT_SUCCESS) {
+            LOG_ERR("umfMemoryProviderAllocationSplit(ptr=%p, totalSize = %zu "
+                    "= (%zu + %zu)) failed",
+                    curr->data, curr->size, size, curr->size - size);
+            return umf_result;
+        }
+    }
+
     ravl_node_t *new_node = NULL;
 
     block_t *new_block =
@@ -990,6 +1018,26 @@ find_free_block(struct ravl *free_blocks, size_t size, size_t alignment,
     }
 }
 
+static int free_blocks_re_add(coarse_memory_provider_t *coarse_provider,
+                              block_t *block) {
+    assert(coarse_provider);
+
+    ravl_node_t *node =
+        coarse_ravl_find_node(coarse_provider->all_blocks, block->data);
+    if (node == NULL) {
+        // the block was not found
+        LOG_ERR("memory block not found (ptr = %p, size = %zu)", block->data,
+                block->size);
+        return -1;
+    }
+
+    // merge with prev and/or next block if they are unused and have continuous data
+    node = free_block_merge_with_prev(coarse_provider, node);
+    node = free_block_merge_with_next(coarse_provider, node);
+
+    return free_blocks_add(coarse_provider->free_blocks, get_node_block(node));
+}
+
 static umf_result_t coarse_memory_provider_alloc(void *provider, size_t size,
                                                  size_t alignment,
                                                  void **resultPtr) {
@@ -1032,30 +1080,17 @@ static umf_result_t coarse_memory_provider_alloc(void *provider, size_t size,
             umf_result =
                 create_aligned_block(coarse_provider, size, alignment, &curr);
             if (umf_result != UMF_RESULT_SUCCESS) {
-                utils_mutex_unlock(&coarse_provider->lock);
-                return umf_result;
+                free_blocks_re_add(coarse_provider, curr);
+                goto err_unlock;
             }
         }
 
         if (action == ACTION_SPLIT) {
-            if (coarse_provider->upstream_memory_provider) {
-                // check if blocks can be split by the upstream provider
-                umf_result = umfMemoryProviderAllocationSplit(
-                    coarse_provider->upstream_memory_provider, curr->data,
-                    curr->size, size);
-                if (umf_result != UMF_RESULT_SUCCESS) {
-                    LOG_ERR("umfMemoryProviderAllocationSplit(upstream_memory_"
-                            "provider) failed");
-                    utils_mutex_unlock(&coarse_provider->lock);
-                    return umf_result;
-                }
-            }
-
             // Split the current block and put the new block after the one that we use.
             umf_result = split_current_block(coarse_provider, curr, size);
             if (umf_result != UMF_RESULT_SUCCESS) {
-                utils_mutex_unlock(&coarse_provider->lock);
-                return umf_result;
+                free_blocks_re_add(coarse_provider, curr);
+                goto err_unlock;
             }
 
             curr->size = size;
@@ -1340,8 +1375,9 @@ static umf_result_t coarse_memory_provider_allocation_split(void *provider,
             coarse_provider->upstream_memory_provider, ptr, totalSize,
             firstSize);
         if (umf_result != UMF_RESULT_SUCCESS) {
-            LOG_ERR("umfMemoryProviderAllocationSplit(upstream_memory_provider)"
-                    " failed");
+            LOG_ERR("umfMemoryProviderAllocationSplit(ptr=%p, totalSize = %zu "
+                    "= (%zu + %zu)) failed",
+                    ptr, totalSize, firstSize, totalSize - firstSize);
             goto err_mutex_unlock;
         }
     }
@@ -1410,18 +1446,6 @@ static umf_result_t coarse_memory_provider_allocation_merge(void *provider,
     }
 
     assert(debug_check(coarse_provider));
-
-    if (coarse_provider->upstream_memory_provider) {
-        // check if blocks can be merged by the upstream provider
-        umf_result = umfMemoryProviderAllocationMerge(
-            coarse_provider->upstream_memory_provider, lowPtr, highPtr,
-            totalSize);
-        if (umf_result != UMF_RESULT_SUCCESS) {
-            LOG_ERR("umfMemoryProviderAllocationMerge(upstream_memory_provider)"
-                    " failed");
-            goto err_mutex_unlock;
-        }
-    }
 
     ravl_node_t *low_node =
         coarse_ravl_find_node(coarse_provider->all_blocks, lowPtr);

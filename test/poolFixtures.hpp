@@ -190,6 +190,8 @@ void pow2AlignedAllocHelper(umf_memory_pool_handle_t pool) {
         std::vector<void *> allocs;
 
         for (size_t alloc = 0; alloc < numAllocs; alloc++) {
+            fprintf(stderr, ">>> alignment = %zu, alloc = %zu\n", alignment,
+                    alloc);
             auto *ptr = umfPoolAlignedMalloc(pool, alignment, alignment);
             ASSERT_NE(ptr, nullptr);
             ASSERT_TRUE(reinterpret_cast<uintptr_t>(ptr) % alignment == 0);
