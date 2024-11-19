@@ -33,7 +33,6 @@ Modifications by Intel:
 
 #define UTHASH_VERSION 2.3.0
 
-#include <stddef.h> /* ptrdiff_t */
 #include <stdlib.h> /* exit */
 #include <string.h> /* memcmp, memset, strlen */
 
@@ -49,6 +48,8 @@ typedef unsigned char uint8_t;
 #else
 #include <stdint.h> /* uint8_t, uint32_t */
 #endif
+
+typedef int64_t ptrdiff_t;
 
 /* These macros use decltype or the earlier __typeof GNU extension.
    As decltype is only available in newer compilers (VS2010 or gcc 4.3+
