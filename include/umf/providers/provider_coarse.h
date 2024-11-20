@@ -51,27 +51,6 @@ typedef struct coarse_memory_provider_params_t {
     /// See coarse_memory_provider_strategy_t for details.
     coarse_memory_provider_strategy_t allocation_strategy;
 
-    /// A pre-allocated buffer that will be the only memory that
-    /// the coarse provider can provide (the fixed-size memory provider option).
-    /// If it is non-NULL, `init_buffer_size ` has to contain its size.
-    /// It has to be NULL if upstream_memory_provider is set
-    /// (exactly one of them has to be non-NULL).
-    void *init_buffer;
-
-    /// Size of the initial buffer:
-    /// 1) `init_buffer` if it is non-NULL xor
-    /// 2) that will be allocated from the upstream_memory_provider
-    ///    (if it is non-NULL) in the `.initialize` operation.
-    size_t init_buffer_size;
-
-    /// When it is true and the upstream_memory_provider is given,
-    /// the init buffer (of `init_buffer_size` bytes) would be pre-allocated
-    /// during creation time using the `upstream_memory_provider`.
-    /// If upstream_memory_provider is not given,
-    /// the init_buffer is always used instead
-    /// (regardless of the value of this parameter).
-    bool immediate_init_from_upstream;
-
     /// Destroy upstream_memory_provider in finalize().
     bool destroy_upstream_memory_provider;
 } coarse_memory_provider_params_t;

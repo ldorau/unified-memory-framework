@@ -53,17 +53,12 @@ TEST_F(test, coarseProvider_name_upstream) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
 
-    const size_t init_buffer_size = 20 * MB;
-
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
     memset(&coarse_memory_provider_params, 0,
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
     coarse_memory_provider_params.destroy_upstream_memory_provider = true;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = nullptr;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -92,50 +87,6 @@ TEST_F(test, coarseProvider_name_upstream) {
     // ba_global_provider has already been destroyed
     // by umfMemoryProviderDestroy(coarse_memory_provider), because:
     // coarse_memory_provider_params.destroy_upstream_memory_provider = true;
-}
-
-TEST_F(test, coarseProvider_name_no_upstream) {
-    umf_result_t umf_result;
-
-    const size_t init_buffer_size = 20 * MB;
-
-    // preallocate some memory and initialize the vector with zeros
-    std::vector<char> buffer(init_buffer_size, 0);
-    void *buf = (void *)buffer.data();
-    ASSERT_NE(buf, nullptr);
-
-    coarse_memory_provider_params_t coarse_memory_provider_params;
-    // make sure there are no undefined members - prevent a UB
-    memset(&coarse_memory_provider_params, 0,
-           sizeof(coarse_memory_provider_params));
-    coarse_memory_provider_params.upstream_memory_provider = nullptr;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = buf;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
-
-    umf_memory_provider_handle_t coarse_memory_provider;
-    umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
-                                         &coarse_memory_provider_params,
-                                         &coarse_memory_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(coarse_memory_provider, nullptr);
-
-    size_t minPageSize = 0;
-    umf_result = umfMemoryProviderGetMinPageSize(coarse_memory_provider,
-                                                 nullptr, &minPageSize);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_GT(minPageSize, 0);
-
-    size_t pageSize = 0;
-    umf_result = umfMemoryProviderGetRecommendedPageSize(
-        coarse_memory_provider, minPageSize, &pageSize);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_GE(pageSize, minPageSize);
-
-    ASSERT_EQ(
-        strcmp(umfMemoryProviderGetName(coarse_memory_provider), BASE_NAME), 0);
-
-    umfMemoryProviderDestroy(coarse_memory_provider);
 }
 
 // negative tests
@@ -170,9 +121,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_0) {
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.allocation_strategy = allocation_strategy;
     coarse_memory_provider_params.upstream_memory_provider = nullptr;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = nullptr;
-    coarse_memory_provider_params.init_buffer_size = 0;
 
     umf_memory_provider_handle_t coarse_memory_provider = nullptr;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -180,86 +128,11 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_0) {
                                          &coarse_memory_provider);
     ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
     ASSERT_EQ(coarse_memory_provider, nullptr);
-}
-
-// wrong parameters: given both an upstream_memory_provider
-// and an init_buffer while only one of them is allowed
-TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_1) {
-    umf_memory_provider_handle_t ba_global_provider;
-    umf_result_t umf_result;
-
-    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
-                                         &ba_global_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(ba_global_provider, nullptr);
-
-    const size_t init_buffer_size = 20 * MB;
-
-    // preallocate some memory and initialize the vector with zeros
-    std::vector<char> buffer(init_buffer_size, 0);
-    void *buf = (void *)buffer.data();
-    ASSERT_NE(buf, nullptr);
-
-    coarse_memory_provider_params_t coarse_memory_provider_params;
-    // make sure there are no undefined members - prevent a UB
-    memset(&coarse_memory_provider_params, 0,
-           sizeof(coarse_memory_provider_params));
-    coarse_memory_provider_params.allocation_strategy = allocation_strategy;
-    coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = buf;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
-
-    umf_memory_provider_handle_t coarse_memory_provider = nullptr;
-    umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
-                                         &coarse_memory_provider_params,
-                                         &coarse_memory_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-    ASSERT_EQ(coarse_memory_provider, nullptr);
-
-    umfMemoryProviderDestroy(ba_global_provider);
-}
-
-// wrong parameters: init_buffer_size must not equal 0 when immediate_init_from_upstream is true
-TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_2) {
-    umf_memory_provider_handle_t ba_global_provider;
-    umf_result_t umf_result;
-
-    umf_result = umfMemoryProviderCreate(&BA_GLOBAL_SPLIT_MERGE_OPS, NULL,
-                                         &ba_global_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(ba_global_provider, nullptr);
-
-    coarse_memory_provider_params_t coarse_memory_provider_params;
-    // make sure there are no undefined members - prevent a UB
-    memset(&coarse_memory_provider_params, 0,
-           sizeof(coarse_memory_provider_params));
-    coarse_memory_provider_params.allocation_strategy = allocation_strategy;
-    coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = nullptr;
-    coarse_memory_provider_params.init_buffer_size = 0;
-
-    umf_memory_provider_handle_t coarse_memory_provider = nullptr;
-    umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
-                                         &coarse_memory_provider_params,
-                                         &coarse_memory_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-    ASSERT_EQ(coarse_memory_provider, nullptr);
-
-    umfMemoryProviderDestroy(ba_global_provider);
 }
 
 // wrong parameters: init_buffer_size must not equal 0 when init_buffer is not NULL
 TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_3) {
     umf_result_t umf_result;
-
-    const size_t init_buffer_size = 20 * MB;
-
-    // preallocate some memory and initialize the vector with zeros
-    std::vector<char> buffer(init_buffer_size, 0);
-    void *buf = (void *)buffer.data();
-    ASSERT_NE(buf, nullptr);
 
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
@@ -267,9 +140,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_3) {
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.allocation_strategy = allocation_strategy;
     coarse_memory_provider_params.upstream_memory_provider = nullptr;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = buf;
-    coarse_memory_provider_params.init_buffer_size = 0;
 
     umf_memory_provider_handle_t coarse_memory_provider = nullptr;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -279,7 +149,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_3) {
     ASSERT_EQ(coarse_memory_provider, nullptr);
 }
 
-// wrong parameters: init_buffer_size must equal 0 when init_buffer is NULL and immediate_init_from_upstream is false
 TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_4) {
     umf_memory_provider_handle_t ba_global_provider;
     umf_result_t umf_result;
@@ -295,16 +164,13 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_4) {
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.allocation_strategy = allocation_strategy;
     coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = 20 * MB;
 
     umf_memory_provider_handle_t coarse_memory_provider = nullptr;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
                                          &coarse_memory_provider_params,
                                          &coarse_memory_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-    ASSERT_EQ(coarse_memory_provider, nullptr);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+    ASSERT_NE(coarse_memory_provider, nullptr);
 
     umfMemoryProviderDestroy(ba_global_provider);
 }
@@ -313,13 +179,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_4) {
 TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_5) {
     umf_result_t umf_result;
 
-    const size_t init_buffer_size = 20 * MB;
-
-    // preallocate some memory and initialize the vector with zeros
-    std::vector<char> buffer(init_buffer_size, 0);
-    void *buf = (void *)buffer.data();
-    ASSERT_NE(buf, nullptr);
-
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
     memset(&coarse_memory_provider_params, 0,
@@ -327,9 +186,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_wrong_params_5) {
     coarse_memory_provider_params.allocation_strategy = allocation_strategy;
     coarse_memory_provider_params.upstream_memory_provider = nullptr;
     coarse_memory_provider_params.destroy_upstream_memory_provider = true;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = buf;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider = nullptr;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -361,9 +217,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_merge_upstream) {
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider =
         file_memory_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -377,8 +230,8 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_merge_upstream) {
     char *ptr2 = nullptr;
 
     ASSERT_EQ(GetStats(cp).used_size, 0 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
+    ASSERT_EQ(GetStats(cp).alloc_size, 0);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 0);
 
     /* test umfMemoryProviderAllocationMerge */
     umf_result =
@@ -441,9 +294,6 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_file_prov) {
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider =
         file_memory_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
     coarse_memory_provider_params.destroy_upstream_memory_provider = true;
 
     umf_memory_provider_handle_t coarse_memory_provider;
@@ -465,14 +315,14 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_file_prov) {
     void *ptr2 = nullptr;
 
     ASSERT_EQ(GetStats(cp).used_size, 0 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
+    ASSERT_EQ(GetStats(cp).alloc_size, 0);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 0);
 
     ptr1 = umfPoolMalloc(pool, init_buffer_size / 2);
     ASSERT_NE(ptr1, nullptr);
     ASSERT_EQ(GetStats(cp).used_size, init_buffer_size / 2);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
+    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size / 2);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     ptr2 = umfPoolMalloc(pool, init_buffer_size / 2);
     ASSERT_NE(ptr2, nullptr);
@@ -530,16 +380,11 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
 
-    const size_t init_buffer_size = 20 * MB;
-
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
     memset(&coarse_memory_provider_params, 0,
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -552,33 +397,33 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge) {
     char *ptr = nullptr;
 
     ASSERT_EQ(GetStats(cp).used_size, 0 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
+    ASSERT_EQ(GetStats(cp).alloc_size, 0);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 0);
 
     /* test umfMemoryProviderAllocationSplit */
     umf_result = umfMemoryProviderAlloc(cp, 2 * MB, 0, (void **)&ptr);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ(GetStats(cp).used_size, 2 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     umf_result = umfMemoryProviderAllocationSplit(cp, ptr, 2 * MB, 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 2 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
 
     umf_result = umfMemoryProviderFree(cp, (ptr + 1 * MB), 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 1 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
     ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
 
     umf_result = umfMemoryProviderFree(cp, ptr, 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 0);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
     ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     /* test umfMemoryProviderAllocationMerge */
@@ -586,26 +431,26 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ(GetStats(cp).used_size, 2 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     umf_result = umfMemoryProviderAllocationSplit(cp, ptr, 2 * MB, 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 2 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
 
     umf_result =
         umfMemoryProviderAllocationMerge(cp, ptr, (ptr + 1 * MB), 2 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 2 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     umf_result = umfMemoryProviderFree(cp, ptr, 2 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 0);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
+    ASSERT_EQ(GetStats(cp).alloc_size, 2 * MB);
     ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     umfMemoryProviderDestroy(coarse_memory_provider);
@@ -621,16 +466,11 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_negative) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
 
-    const size_t init_buffer_size = 20 * MB;
-
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
     memset(&coarse_memory_provider_params, 0,
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
@@ -643,16 +483,16 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_negative) {
     char *ptr = nullptr;
 
     ASSERT_EQ(GetStats(cp).used_size, 0 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
+    ASSERT_EQ(GetStats(cp).alloc_size, 0);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 0);
 
     /* test umfMemoryProviderAllocationSplit */
     umf_result = umfMemoryProviderAlloc(cp, 6 * MB, 0, (void **)&ptr);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ptr, nullptr);
     ASSERT_EQ(GetStats(cp).used_size, 6 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     // firstSize >= totalSize
     umf_result = umfMemoryProviderAllocationSplit(cp, ptr, 6 * MB, 6 * MB);
@@ -671,16 +511,16 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_negative) {
     umf_result = umfMemoryProviderAllocationSplit(cp, ptr, 6 * MB, 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 6 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
 
     // split (5 * MB) block into (2 * MB) + (3 * MB)
     umf_result =
         umfMemoryProviderAllocationSplit(cp, (ptr + 1 * MB), 5 * MB, 2 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 6 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 4);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
 
     // now we have 3 blocks: (1 * MB) + (2 * MB) + (3 * MB)
 
@@ -707,82 +547,23 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_split_merge_negative) {
     umf_result = umfMemoryProviderFree(cp, ptr, 1 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 5 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 4);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
 
     umf_result = umfMemoryProviderFree(cp, (ptr + 1 * MB), 2 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 3 * MB);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
-    ASSERT_EQ(GetStats(cp).num_all_blocks, 3);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
+    ASSERT_EQ(GetStats(cp).num_all_blocks, 2);
 
     umf_result = umfMemoryProviderFree(cp, (ptr + 3 * MB), 3 * MB);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_EQ(GetStats(cp).used_size, 0);
-    ASSERT_EQ(GetStats(cp).alloc_size, init_buffer_size);
+    ASSERT_EQ(GetStats(cp).alloc_size, 6 * MB);
     ASSERT_EQ(GetStats(cp).num_all_blocks, 1);
 
     umfMemoryProviderDestroy(coarse_memory_provider);
     umfMemoryProviderDestroy(ba_global_provider);
-}
-
-TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_purge_no_upstream) {
-    umf_result_t umf_result;
-
-    const size_t init_buffer_size = 20 * MB;
-
-    // preallocate some memory and initialize the vector with zeros
-    std::vector<char> buffer(init_buffer_size, 0);
-    void *buf = (void *)buffer.data();
-    ASSERT_NE(buf, nullptr);
-
-    coarse_memory_provider_params_t coarse_memory_provider_params;
-    // make sure there are no undefined members - prevent a UB
-    memset(&coarse_memory_provider_params, 0,
-           sizeof(coarse_memory_provider_params));
-    coarse_memory_provider_params.allocation_strategy = allocation_strategy;
-    coarse_memory_provider_params.upstream_memory_provider = nullptr;
-    coarse_memory_provider_params.immediate_init_from_upstream = false;
-    coarse_memory_provider_params.init_buffer = buf;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
-
-    umf_memory_provider_handle_t coarse_memory_provider = nullptr;
-    umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),
-                                         &coarse_memory_provider_params,
-                                         &coarse_memory_provider);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(coarse_memory_provider, nullptr);
-
-    // umfMemoryProviderPurgeLazy
-    // provider == NULL
-    umf_result = umfMemoryProviderPurgeLazy(nullptr, (void *)0x01, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    // ptr == NULL
-    umf_result = umfMemoryProviderPurgeLazy(coarse_memory_provider, nullptr, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    // no upstream_memory_provider
-    umf_result =
-        umfMemoryProviderPurgeLazy(coarse_memory_provider, (void *)0x01, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_NOT_SUPPORTED);
-
-    // umfMemoryProviderPurgeForce
-    // provider == NULL
-    umf_result = umfMemoryProviderPurgeForce(nullptr, (void *)0x01, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    // ptr == NULL
-    umf_result =
-        umfMemoryProviderPurgeForce(coarse_memory_provider, nullptr, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    // no upstream_memory_provider
-    umf_result =
-        umfMemoryProviderPurgeForce(coarse_memory_provider, (void *)0x01, 1);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_NOT_SUPPORTED);
-
-    umfMemoryProviderDestroy(coarse_memory_provider);
 }
 
 TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_purge_with_upstream) {
@@ -794,16 +575,11 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseProvider_purge_with_upstream) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(ba_global_provider, nullptr);
 
-    const size_t init_buffer_size = 20 * MB;
-
     coarse_memory_provider_params_t coarse_memory_provider_params;
     // make sure there are no undefined members - prevent a UB
     memset(&coarse_memory_provider_params, 0,
            sizeof(coarse_memory_provider_params));
     coarse_memory_provider_params.upstream_memory_provider = ba_global_provider;
-    coarse_memory_provider_params.immediate_init_from_upstream = true;
-    coarse_memory_provider_params.init_buffer = NULL;
-    coarse_memory_provider_params.init_buffer_size = init_buffer_size;
 
     umf_memory_provider_handle_t coarse_memory_provider;
     umf_result = umfMemoryProviderCreate(umfCoarseMemoryProviderOps(),

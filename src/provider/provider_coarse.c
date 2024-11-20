@@ -32,8 +32,6 @@ typedef struct coarse_memory_provider_t {
     // memory allocation strategy
     coarse_memory_provider_strategy_t allocation_strategy;
 
-    void *init_buffer;
-
     size_t used_size;
     size_t alloc_size;
 
@@ -461,17 +459,15 @@ static umf_result_t user_block_merge(coarse_memory_provider_t *coarse_provider,
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
-    if (coarse_provider->upstream_memory_provider) {
-        // check if blocks can be merged by the upstream provider
-        umf_result_t umf_result = umfMemoryProviderAllocationMerge(
-            coarse_provider->upstream_memory_provider, block1->data,
-            block2->data, block1->size + block2->size);
-        if (umf_result != UMF_RESULT_SUCCESS) {
-            LOG_ERR("umfMemoryProviderAllocationMerge(lowPtr=%p, highPtr=%p, "
-                    "totalSize=%zu) failed",
-                    block1->data, block2->data, block1->size + block2->size);
-            return umf_result;
-        }
+    // check if blocks can be merged by the upstream provider
+    umf_result_t umf_result = umfMemoryProviderAllocationMerge(
+        coarse_provider->upstream_memory_provider, block1->data, block2->data,
+        block1->size + block2->size);
+    if (umf_result != UMF_RESULT_SUCCESS) {
+        LOG_ERR("umfMemoryProviderAllocationMerge(lowPtr=%p, highPtr=%p, "
+                "totalSize=%zu) failed",
+                block1->data, block2->data, block1->size + block2->size);
+        return umf_result;
     }
 
     if (block1->free_list_ptr) {
@@ -643,12 +639,6 @@ coarse_add_new_block(coarse_memory_provider_t *coarse_provider, void *addr,
 
 static umf_result_t
 coarse_memory_provider_set_name(coarse_memory_provider_t *coarse_provider) {
-    if (coarse_provider->upstream_memory_provider == NULL) {
-        // COARSE_BASE_NAME will be used
-        coarse_provider->name = NULL;
-        return UMF_RESULT_SUCCESS;
-    }
-
     const char *up_name =
         umfMemoryProviderGetName(coarse_provider->upstream_memory_provider);
     if (!up_name) {
@@ -690,33 +680,8 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
         (coarse_memory_provider_params_t *)params;
 
     // check params
-    if (!coarse_params->upstream_memory_provider ==
-        !coarse_params->init_buffer) {
-        LOG_ERR("either upstream provider or init buffer has to be provided in "
-                "the parameters (exactly one of them)");
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (coarse_params->init_buffer_size == 0 &&
-        (coarse_params->immediate_init_from_upstream ||
-         coarse_params->init_buffer != NULL)) {
-        LOG_ERR("init_buffer_size has to be greater than 0 if "
-                "immediate_init_from_upstream or init_buffer is set");
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (coarse_params->init_buffer_size != 0 &&
-        (!coarse_params->immediate_init_from_upstream &&
-         coarse_params->init_buffer == NULL)) {
-        LOG_ERR("init_buffer_size is greater than 0 but none of "
-                "immediate_init_from_upstream nor init_buffer is set");
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
-    }
-
-    if (coarse_params->destroy_upstream_memory_provider &&
-        !coarse_params->upstream_memory_provider) {
-        LOG_ERR("destroy_upstream_memory_provider is true, but an upstream "
-                "provider is not provided");
+    if (!coarse_params->upstream_memory_provider) {
+        LOG_ERR("upstream provider has to be provided in the parameters");
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
@@ -734,14 +699,8 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
     coarse_provider->destroy_upstream_memory_provider =
         coarse_params->destroy_upstream_memory_provider;
     coarse_provider->allocation_strategy = coarse_params->allocation_strategy;
-    coarse_provider->init_buffer = coarse_params->init_buffer;
-
-    if (coarse_provider->upstream_memory_provider) {
-        coarse_provider->disable_upstream_provider_free =
-            umfIsFreeOpDefault(coarse_provider->upstream_memory_provider);
-    } else {
-        coarse_provider->disable_upstream_provider_free = false;
-    }
+    coarse_provider->disable_upstream_provider_free =
+        umfIsFreeOpDefault(coarse_provider->upstream_memory_provider);
 
     umf_result_t umf_result = coarse_memory_provider_set_name(coarse_provider);
     if (umf_result != UMF_RESULT_SUCCESS) {
@@ -775,6 +734,7 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
         goto err_delete_ravl_all_blocks;
     }
 
+    /*
     if (coarse_params->upstream_memory_provider &&
         coarse_params->immediate_init_from_upstream) {
         // allocate and immediately deallocate memory using the upstream provider
@@ -804,17 +764,16 @@ static umf_result_t coarse_memory_provider_initialize(void *params,
                                     coarse_provider->init_buffer,
                                     coarse_params->init_buffer_size);
     }
+*/
 
     assert(coarse_provider->used_size == 0);
-    assert(coarse_provider->alloc_size == coarse_params->init_buffer_size);
+    assert(coarse_provider->alloc_size == 0);
     assert(debug_check(coarse_provider));
 
     *provider = coarse_provider;
 
     return UMF_RESULT_SUCCESS;
 
-err_destroy_mutex:
-    utils_mutex_destroy_not_free(&coarse_provider->lock);
 err_delete_ravl_all_blocks:
     ravl_delete(coarse_provider->all_blocks);
 err_delete_ravl_free_blocks:
@@ -836,8 +795,7 @@ static void coarse_ravl_cb_rm_all_blocks_node(void *data, void *arg) {
     block_t *block = node_data->value;
     assert(block);
 
-    if (coarse_provider->upstream_memory_provider &&
-        !coarse_provider->disable_upstream_provider_free) {
+    if (!coarse_provider->disable_upstream_provider_free) {
         // we continue to deallocate blocks even if the upstream provider doesn't return success
         umfMemoryProviderFree(coarse_provider->upstream_memory_provider,
                               block->data, block->size);
@@ -874,8 +832,7 @@ static void coarse_memory_provider_finalize(void *provider) {
 
     umf_ba_global_free(coarse_provider->name);
 
-    if (coarse_provider->destroy_upstream_memory_provider &&
-        coarse_provider->upstream_memory_provider) {
+    if (coarse_provider->destroy_upstream_memory_provider) {
         umfMemoryProviderDestroy(coarse_provider->upstream_memory_provider);
     }
 
@@ -910,14 +867,12 @@ create_aligned_block(coarse_memory_provider_t *coarse_provider,
     uintptr_t aligned_data = ALIGN_UP(orig_data, alignment);
     size_t padding = aligned_data - orig_data;
     if (alignment > 0 && padding > 0) {
-        if (coarse_provider->upstream_memory_provider) {
-            // check if block can be split by the upstream provider
-            umf_result_t umf_result =
-                can_upstream_split(coarse_provider->upstream_memory_provider,
-                                   curr->data, curr->size, padding);
-            if (umf_result != UMF_RESULT_SUCCESS) {
-                return umf_result;
-            }
+        // check if block can be split by the upstream provider
+        umf_result_t umf_result =
+            can_upstream_split(coarse_provider->upstream_memory_provider,
+                               curr->data, curr->size, padding);
+        if (umf_result != UMF_RESULT_SUCCESS) {
+            return umf_result;
         }
 
         block_t *aligned_block = coarse_ravl_add_new(
@@ -948,14 +903,12 @@ static umf_result_t
 split_current_block(coarse_memory_provider_t *coarse_provider, block_t *curr,
                     size_t size) {
 
-    if (coarse_provider->upstream_memory_provider) {
-        // check if block can be split by the upstream provider
-        umf_result_t umf_result =
-            can_upstream_split(coarse_provider->upstream_memory_provider,
-                               curr->data, curr->size, size);
-        if (umf_result != UMF_RESULT_SUCCESS) {
-            return umf_result;
-        }
+    // check if block can be split by the upstream provider
+    umf_result_t umf_result =
+        can_upstream_split(coarse_provider->upstream_memory_provider,
+                           curr->data, curr->size, size);
+    if (umf_result != UMF_RESULT_SUCCESS) {
+        return umf_result;
     }
 
     ravl_node_t *new_node = NULL;
@@ -1120,11 +1073,6 @@ static umf_result_t coarse_memory_provider_alloc(void *provider, size_t size,
     // no suitable block found - try to get more memory from the upstream provider
     umf_result = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
 
-    if (coarse_provider->upstream_memory_provider == NULL) {
-        LOG_ERR("out of memory - no upstream memory provider given");
-        goto err_unlock;
-    }
-
     umfMemoryProviderAlloc(coarse_provider->upstream_memory_provider, size,
                            alignment, resultPtr);
     if (*resultPtr == NULL) {
@@ -1236,11 +1184,6 @@ static umf_result_t coarse_memory_provider_get_min_page_size(void *provider,
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
 
-    if (!coarse_provider->upstream_memory_provider) {
-        *pageSize = utils_get_page_size();
-        return UMF_RESULT_SUCCESS;
-    }
-
     return umfMemoryProviderGetMinPageSize(
         coarse_provider->upstream_memory_provider, ptr, pageSize);
 }
@@ -1250,11 +1193,6 @@ coarse_memory_provider_get_recommended_page_size(void *provider, size_t size,
                                                  size_t *pageSize) {
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-
-    if (!coarse_provider->upstream_memory_provider) {
-        *pageSize = utils_get_page_size();
-        return UMF_RESULT_SUCCESS;
-    }
 
     return umfMemoryProviderGetRecommendedPageSize(
         coarse_provider->upstream_memory_provider, size, pageSize);
@@ -1322,10 +1260,6 @@ static umf_result_t coarse_memory_provider_purge_lazy(void *provider, void *ptr,
                                                       size_t size) {
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (coarse_provider->upstream_memory_provider == NULL) {
-        LOG_ERR("no upstream memory provider given");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderPurgeLazy(coarse_provider->upstream_memory_provider,
                                       ptr, size);
@@ -1335,10 +1269,6 @@ static umf_result_t coarse_memory_provider_purge_force(void *provider,
                                                        void *ptr, size_t size) {
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (coarse_provider->upstream_memory_provider == NULL) {
-        LOG_ERR("no upstream memory provider given");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderPurgeForce(
         coarse_provider->upstream_memory_provider, ptr, size);
@@ -1360,14 +1290,11 @@ static umf_result_t coarse_memory_provider_allocation_split(void *provider,
 
     assert(debug_check(coarse_provider));
 
-    if (coarse_provider->upstream_memory_provider) {
-        // check if block can be split by the upstream provider
-        umf_result =
-            can_upstream_split(coarse_provider->upstream_memory_provider, ptr,
-                               totalSize, firstSize);
-        if (umf_result != UMF_RESULT_SUCCESS) {
-            return umf_result;
-        }
+    // check if block can be split by the upstream provider
+    umf_result = can_upstream_split(coarse_provider->upstream_memory_provider,
+                                    ptr, totalSize, firstSize);
+    if (umf_result != UMF_RESULT_SUCCESS) {
+        return umf_result;
     }
 
     ravl_node_t *node = coarse_ravl_find_node(coarse_provider->all_blocks, ptr);
@@ -1511,10 +1438,6 @@ static umf_result_t coarse_memory_provider_get_ipc_handle_size(void *provider,
 
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (!coarse_provider->upstream_memory_provider) {
-        LOG_ERR("missing upstream memory provider");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderGetIPCHandleSize(
         coarse_provider->upstream_memory_provider, size);
@@ -1529,10 +1452,6 @@ coarse_memory_provider_get_ipc_handle(void *provider, const void *ptr,
 
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (!coarse_provider->upstream_memory_provider) {
-        LOG_ERR("missing upstream memory provider");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderGetIPCHandle(
         coarse_provider->upstream_memory_provider, ptr, size, providerIpcData);
@@ -1545,10 +1464,6 @@ coarse_memory_provider_put_ipc_handle(void *provider, void *providerIpcData) {
 
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (!coarse_provider->upstream_memory_provider) {
-        LOG_ERR("missing upstream memory provider");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderPutIPCHandle(
         coarse_provider->upstream_memory_provider, providerIpcData);
@@ -1563,10 +1478,6 @@ coarse_memory_provider_open_ipc_handle(void *provider, void *providerIpcData,
 
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (!coarse_provider->upstream_memory_provider) {
-        LOG_ERR("missing upstream memory provider");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderOpenIPCHandle(
         coarse_provider->upstream_memory_provider, providerIpcData, ptr);
@@ -1580,10 +1491,6 @@ static umf_result_t coarse_memory_provider_close_ipc_handle(void *provider,
 
     coarse_memory_provider_t *coarse_provider =
         (struct coarse_memory_provider_t *)provider;
-    if (!coarse_provider->upstream_memory_provider) {
-        LOG_ERR("missing upstream memory provider");
-        return UMF_RESULT_ERROR_NOT_SUPPORTED;
-    }
 
     return umfMemoryProviderCloseIPCHandle(
         coarse_provider->upstream_memory_provider, ptr, size);
