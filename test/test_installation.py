@@ -97,6 +97,7 @@ class UmfInstaller:
             f"lib/cmake/umf/umf-targets-{self.build_type}.cmake",
             "lib/cmake/umf/umf-targets.cmake",
         ]
+        lib.append(f"lib/{lib_prefix}coarse.{lib_ext_static}")
         for pool in self.pools:
             lib.append(f"lib/{lib_prefix}{pool}.{lib_ext_static}")
         if self.shared_library:
