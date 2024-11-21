@@ -39,7 +39,7 @@ static std::vector<ipcTestParams> getIpcProxyPoolTestParamsList(void) {
 
     ipcProxyPoolTestParamsList = {
         {umfProxyPoolOps(), nullptr, umfDevDaxMemoryProviderOps(),
-         &defaultDevDaxParams, &hostAccessor, true},
+         &defaultDevDaxParams, &hostAccessor, false},
 #ifdef UMF_POOL_JEMALLOC_ENABLED
         {umfJemallocPoolOps(), nullptr, umfDevDaxMemoryProviderOps(),
          &defaultDevDaxParams, &hostAccessor, false},
