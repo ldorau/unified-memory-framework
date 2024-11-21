@@ -27,6 +27,7 @@ umf_memory_provider_ops_t *umfDevDaxMemoryProviderOps(void) {
 #else // !defined(_WIN32) && !defined(UMF_NO_HWLOC)
 
 #include "base_alloc_global.h"
+#include "coarse.h"
 #include "utils_common.h"
 #include "utils_concurrency.h"
 #include "utils_log.h"
@@ -42,6 +43,7 @@ typedef struct devdax_memory_provider_t {
     size_t offset;       // offset in the file used for memory mapping
     utils_mutex_t lock;  // lock of ptr and offset
     unsigned protection; // combination of OS-specific protection flags
+    coarse_t *coarse;    // coarse handle
 } devdax_memory_provider_t;
 
 typedef struct devdax_last_native_error_t {
@@ -94,6 +96,12 @@ devdax_translate_params(umf_devdax_memory_provider_params_t *in_params,
     return UMF_RESULT_SUCCESS;
 }
 
+static umf_result_t devdax_allocation_split_cb(void *provider, void *ptr,
+                                               size_t totalSize,
+                                               size_t firstSize);
+static umf_result_t devdax_allocation_merge_cb(void *provider, void *lowPtr,
+                                               void *highPtr, size_t totalSize);
+
 static umf_result_t devdax_initialize(void *params, void **provider) {
     umf_result_t ret;
 
@@ -122,21 +130,38 @@ static umf_result_t devdax_initialize(void *params, void **provider) {
 
     memset(devdax_provider, 0, sizeof(*devdax_provider));
 
+    coarse_params_t coarse_params = {0};
+    coarse_params.provider = devdax_provider;
+    coarse_params.page_size = DEVDAX_PAGE_SIZE_2MB;
+    coarse_params.cb.alloc = NULL; // not available
+    coarse_params.cb.free = NULL;  // not available
+    coarse_params.cb.split = devdax_allocation_split_cb;
+    coarse_params.cb.merge = devdax_allocation_merge_cb;
+
+    coarse_t *coarse = NULL;
+    ret = coarse_new(&coarse_params, &coarse);
+    if (ret != UMF_RESULT_SUCCESS) {
+        LOG_ERR("coarse_new() failed");
+        goto err_free_devdax_provider;
+    }
+
+    devdax_provider->coarse = coarse;
+
     ret = devdax_translate_params(in_params, devdax_provider);
     if (ret != UMF_RESULT_SUCCESS) {
-        goto err_free_devdax_provider;
+        goto err_coarse_delete;
     }
 
     devdax_provider->size = in_params->size;
     if (utils_copy_path(in_params->path, devdax_provider->path, PATH_MAX)) {
-        goto err_free_devdax_provider;
+        goto err_coarse_delete;
     }
 
     int fd = utils_devdax_open(in_params->path);
     if (fd == -1) {
         LOG_ERR("cannot open the device DAX: %s", in_params->path);
         ret = UMF_RESULT_ERROR_INVALID_ARGUMENT;
-        goto err_free_devdax_provider;
+        goto err_coarse_delete;
     }
 
     bool is_dax = false;
@@ -150,22 +175,24 @@ static umf_result_t devdax_initialize(void *params, void **provider) {
         LOG_PDEBUG("mapping the devdax failed (path=%s, size=%zu)",
                    in_params->path, devdax_provider->size);
         ret = UMF_RESULT_ERROR_UNKNOWN;
-        goto err_free_devdax_provider;
+        goto err_coarse_delete;
     }
 
     if (!is_dax) {
         LOG_ERR("mapping the devdax with MAP_SYNC failed: %s", in_params->path);
         ret = UMF_RESULT_ERROR_UNKNOWN;
-
-        if (devdax_provider->base) {
-            utils_munmap(devdax_provider->base, devdax_provider->size);
-        }
-
-        goto err_free_devdax_provider;
+        goto err_unmap_devdax;
     }
 
     LOG_DEBUG("devdax memory mapped (path=%s, size=%zu, addr=%p)",
               in_params->path, devdax_provider->size, devdax_provider->base);
+
+    ret = coarse_add_memory_block(coarse, devdax_provider->base,
+                                  devdax_provider->size);
+    if (ret != UMF_RESULT_SUCCESS) {
+        LOG_ERR("adding memory block failed");
+        goto err_unmap_devdax;
+    }
 
     if (utils_mutex_init(&devdax_provider->lock) == NULL) {
         LOG_ERR("lock init failed");
@@ -178,7 +205,11 @@ static umf_result_t devdax_initialize(void *params, void **provider) {
     return UMF_RESULT_SUCCESS;
 
 err_unmap_devdax:
-    utils_munmap(devdax_provider->base, devdax_provider->size);
+    if (devdax_provider->base) {
+        utils_munmap(devdax_provider->base, devdax_provider->size);
+    }
+err_coarse_delete:
+    coarse_delete(devdax_provider->coarse);
 err_free_devdax_provider:
     umf_ba_global_free(devdax_provider);
     return ret;
@@ -188,9 +219,11 @@ static void devdax_finalize(void *provider) {
     devdax_memory_provider_t *devdax_provider = provider;
     utils_mutex_destroy_not_free(&devdax_provider->lock);
     utils_munmap(devdax_provider->base, devdax_provider->size);
+    coarse_delete(devdax_provider->coarse);
     umf_ba_global_free(devdax_provider);
 }
 
+/*
 static int devdax_alloc_aligned(size_t length, size_t alignment, void *base,
                                 size_t size, utils_mutex_t *lock,
                                 void **out_addr, size_t *offset) {
@@ -225,7 +258,7 @@ static int devdax_alloc_aligned(size_t length, size_t alignment, void *base,
     return 0;
 }
 
-static umf_result_t devdax_alloc(void *provider, size_t size, size_t alignment,
+umf_result_t devdax_alloc(void *provider, size_t size, size_t alignment,
                                  void **resultPtr) {
     int ret;
 
@@ -261,6 +294,7 @@ static umf_result_t devdax_alloc(void *provider, size_t size, size_t alignment,
 
     return UMF_RESULT_SUCCESS;
 }
+*/
 
 static void devdax_get_last_native_error(void *provider, const char **ppMessage,
                                          int32_t *pError) {
@@ -342,9 +376,9 @@ static const char *devdax_get_name(void *provider) {
     return "DEVDAX";
 }
 
-static umf_result_t devdax_allocation_split(void *provider, void *ptr,
-                                            size_t totalSize,
-                                            size_t firstSize) {
+static umf_result_t devdax_allocation_split_cb(void *provider, void *ptr,
+                                               size_t totalSize,
+                                               size_t firstSize) {
     (void)provider;
     (void)ptr;
     (void)totalSize;
@@ -352,8 +386,9 @@ static umf_result_t devdax_allocation_split(void *provider, void *ptr,
     return UMF_RESULT_SUCCESS;
 }
 
-static umf_result_t devdax_allocation_merge(void *provider, void *lowPtr,
-                                            void *highPtr, size_t totalSize) {
+static umf_result_t devdax_allocation_merge_cb(void *provider, void *lowPtr,
+                                               void *highPtr,
+                                               size_t totalSize) {
     (void)provider;
     (void)lowPtr;
     (void)highPtr;
@@ -486,6 +521,28 @@ static umf_result_t devdax_close_ipc_handle(void *provider, void *ptr,
     }
 
     return UMF_RESULT_SUCCESS;
+}
+
+static umf_result_t devdax_alloc(void *provider, size_t size, size_t alignment,
+                                 void **resultPtr) {
+    devdax_memory_provider_t *devdax_provider =
+        (devdax_memory_provider_t *)provider;
+    return coarse_alloc(devdax_provider->coarse, size, alignment, resultPtr);
+}
+
+static umf_result_t devdax_allocation_split(void *provider, void *ptr,
+                                            size_t totalSize,
+                                            size_t firstSize) {
+    devdax_memory_provider_t *devdax_provider =
+        (devdax_memory_provider_t *)provider;
+    return coarse_split(devdax_provider->coarse, ptr, totalSize, firstSize);
+}
+
+static umf_result_t devdax_allocation_merge(void *provider, void *lowPtr,
+                                            void *highPtr, size_t totalSize) {
+    devdax_memory_provider_t *devdax_provider =
+        (devdax_memory_provider_t *)provider;
+    return coarse_merge(devdax_provider->coarse, lowPtr, highPtr, totalSize);
 }
 
 static umf_memory_provider_ops_t UMF_DEVDAX_MEMORY_PROVIDER_OPS = {
