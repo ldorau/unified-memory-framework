@@ -42,7 +42,7 @@ HostMemoryAccessor hostAccessor;
 static std::vector<ipcTestParams> ipcManyPoolsTestParamsList = {
 // TODO: enable it when sizes of allocations in ipcFixtures.hpp are fixed
 //    {umfProxyPoolOps(), nullptr, umfFileMemoryProviderOps(),
-//     &file_params_shared, &hostAccessor, true},
+//     &file_params_shared, &hostAccessor, false},
 #ifdef UMF_POOL_JEMALLOC_ENABLED
     {umfJemallocPoolOps(), nullptr, umfFileMemoryProviderOps(),
      &file_params_shared, &hostAccessor, false},
