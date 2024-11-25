@@ -13,8 +13,7 @@ auto defaultParams = umfOsMemoryProviderParamsDefault();
 INSTANTIATE_TEST_SUITE_P(scalablePoolTest, umfPoolTest,
                          ::testing::Values(poolCreateExtParams{
                              umfScalablePoolOps(), nullptr,
-                             umfOsMemoryProviderOps(), &defaultParams,
-                             nullptr}));
+                             umfOsMemoryProviderOps(), &defaultParams}));
 
 using scalablePoolParams = std::tuple<size_t, bool>;
 struct umfScalablePoolParamsTest

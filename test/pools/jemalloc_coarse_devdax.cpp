@@ -7,7 +7,6 @@
 
 #include "pool_coarse.hpp"
 
-auto coarseParams = umfCoarseMemoryProviderParamsDefault();
 auto devdaxParams = umfDevDaxMemoryProviderParamsDefault(
     getenv("UMF_TESTS_DEVDAX_PATH"), getenv("UMF_TESTS_DEVDAX_SIZE")
                                          ? atol(getenv("UMF_TESTS_DEVDAX_SIZE"))
@@ -16,5 +15,4 @@ auto devdaxParams = umfDevDaxMemoryProviderParamsDefault(
 INSTANTIATE_TEST_SUITE_P(jemallocCoarseDevDaxTest, umfPoolTest,
                          ::testing::Values(poolCreateExtParams{
                              umfJemallocPoolOps(), nullptr,
-                             umfDevDaxMemoryProviderOps(), &devdaxParams,
-                             &coarseParams}));
+                             umfDevDaxMemoryProviderOps(), &devdaxParams}));

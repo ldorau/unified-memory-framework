@@ -15,8 +15,7 @@ auto defaultParams = umfOsMemoryProviderParamsDefault();
 INSTANTIATE_TEST_SUITE_P(jemallocPoolTest, umfPoolTest,
                          ::testing::Values(poolCreateExtParams{
                              umfJemallocPoolOps(), nullptr,
-                             umfOsMemoryProviderOps(), &defaultParams,
-                             nullptr}));
+                             umfOsMemoryProviderOps(), &defaultParams}));
 
 // this test makes sure that jemalloc does not use
 // memory provider to allocate metadata (and hence
@@ -31,9 +30,8 @@ TEST_F(test, metadataNotAllocatedUsingProvider) {
     auto params = umfOsMemoryProviderParamsDefault();
     params.protection = UMF_PROTECTION_NONE;
 
-    auto pool =
-        poolCreateExtUnique({umfJemallocPoolOps(), nullptr,
-                             umfOsMemoryProviderOps(), &params, nullptr});
+    auto pool = poolCreateExtUnique(
+        {umfJemallocPoolOps(), nullptr, umfOsMemoryProviderOps(), &params});
 
     std::vector<std::shared_ptr<void>> allocs;
     for (size_t i = 0; i < numAllocs; i++) {

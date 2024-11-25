@@ -7,11 +7,9 @@
 
 #include "pool_coarse.hpp"
 
-auto coarseParams = umfCoarseMemoryProviderParamsDefault();
 auto fileParams = umfFileMemoryProviderParamsDefault(FILE_PATH);
 
 INSTANTIATE_TEST_SUITE_P(jemallocCoarseFileTest, umfPoolTest,
                          ::testing::Values(poolCreateExtParams{
                              umfJemallocPoolOps(), nullptr,
-                             umfFileMemoryProviderOps(), &fileParams,
-                             &coarseParams}));
+                             umfFileMemoryProviderOps(), &fileParams}));
