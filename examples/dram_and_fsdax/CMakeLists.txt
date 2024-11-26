@@ -26,6 +26,10 @@ if(NOT JEMALLOC_FOUND)
     find_package(JEMALLOC REQUIRED jemalloc)
 endif()
 
+if(LINUX)
+    set(JEMALLOC_LIBRARIES ${JEMALLOC_LIBRARIES} dl)
+endif()
+
 # build the example
 set(EXAMPLE_NAME umf_example_dram_and_fsdax)
 add_executable(${EXAMPLE_NAME} dram_and_fsdax.c)
