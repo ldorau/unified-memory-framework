@@ -598,6 +598,14 @@ static bool debug_check(coarse_t *provider) {
     // verify the all_blocks list
     ravl_foreach(provider->all_blocks, debug_verify_all_blocks_cb, &cb_args);
 
+/*
+    if (cb_args.num_free_blocks != stats.num_free_blocks) {
+        fprintf(stderr, "ERROR: cb_args.num_free_blocks = %zu, stats.num_free_blocks = %zu\n", cb_args.num_free_blocks, stats.num_free_blocks);
+    } else {
+        fprintf(stderr, "OK: cb_args.num_free_blocks = %zu, stats.num_free_blocks = %zu\n", cb_args.num_free_blocks, stats.num_free_blocks);
+    }
+*/
+
     assert(cb_args.num_all_blocks == stats.num_all_blocks);
     assert(cb_args.num_free_blocks == stats.num_free_blocks);
     assert(cb_args.sum_used == provider->used_size);

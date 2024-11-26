@@ -24,6 +24,9 @@
 // global base allocator used by all providers and pools
 static UTIL_ONCE_FLAG ba_is_initialized = UTIL_ONCE_FLAG_INIT;
 
+static long BA_FI_max = 0;
+static long BA_FI_i = 0;
+
 #define ALLOC_METADATA_SIZE (sizeof(size_t))
 
 // allocation classes need to be consecutive powers of 2
@@ -67,6 +70,11 @@ static void umf_ba_create_global(void) {
 
     size_t smallestSize = BASE_ALLOC.ac_sizes[0];
     BASE_ALLOC.smallest_ac_size_log2 = log2Utils(smallestSize);
+
+    char *value = getenv("UMF_BA_FI");
+    if (value) {
+        BA_FI_max = atol(value);
+    }
 
     LOG_DEBUG("UMF base allocator created");
 }
@@ -159,6 +167,16 @@ void *umf_ba_global_aligned_alloc(size_t size, size_t alignment) {
 
     if (size == 0) {
         return NULL;
+    }
+
+    if (BA_FI_max) {
+        BA_FI_i++;
+        if (BA_FI_i == BA_FI_max) {
+            fprintf(stderr, "[UMF_BA_FI] %li UMF_BA_FI_FAILED !!!\n", BA_FI_i);
+            return NULL;
+        }
+
+        fprintf(stderr, "[UMF_BA_FI] %li\n", BA_FI_i);
     }
 
     if (size > SIZE_MAX - ALLOC_METADATA_SIZE) {
