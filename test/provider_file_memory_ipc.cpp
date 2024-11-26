@@ -42,14 +42,14 @@ HostMemoryAccessor hostAccessor;
 static std::vector<ipcTestParams> ipcManyPoolsTestParamsList = {
 // TODO: enable it when sizes of allocations in ipcFixtures.hpp are fixed
 //    {umfProxyPoolOps(), nullptr, umfFileMemoryProviderOps(),
-//     &file_params_shared, &hostAccessor, false},
+//     &file_params_shared, &hostAccessor},
 #ifdef UMF_POOL_JEMALLOC_ENABLED
     {umfJemallocPoolOps(), nullptr, umfFileMemoryProviderOps(),
-     &file_params_shared, &hostAccessor, false},
+     &file_params_shared, &hostAccessor},
 #endif
 #ifdef UMF_POOL_SCALABLE_ENABLED
     {umfScalablePoolOps(), nullptr, umfFileMemoryProviderOps(),
-     &file_params_shared, &hostAccessor, false},
+     &file_params_shared, &hostAccessor},
 #endif
 };
 
@@ -65,14 +65,14 @@ static std::vector<ipcTestParams> getIpcFsDaxTestParamsList(void) {
     ipcFsDaxTestParamsList = {
 // TODO: enable it when sizes of allocations in ipcFixtures.hpp are fixed
 //        {umfProxyPoolOps(), nullptr, umfFileMemoryProviderOps(),
-//         &file_params_fsdax, &hostAccessor, true},
+//         &file_params_fsdax, &hostAccessor},
 #ifdef UMF_POOL_JEMALLOC_ENABLED
         {umfJemallocPoolOps(), nullptr, umfFileMemoryProviderOps(),
-         &file_params_fsdax, &hostAccessor, false},
+         &file_params_fsdax, &hostAccessor},
 #endif
 #ifdef UMF_POOL_SCALABLE_ENABLED
         {umfScalablePoolOps(), nullptr, umfFileMemoryProviderOps(),
-         &file_params_fsdax, &hostAccessor, false},
+         &file_params_fsdax, &hostAccessor},
 #endif
     };
 
