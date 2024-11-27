@@ -262,7 +262,7 @@ The `UMF_BUILD_LIBUMF_POOL_JEMALLOC` option has to be turned `ON` to build this 
 
 1) The `UMF_BUILD_LIBUMF_POOL_JEMALLOC` option turned `ON`
 2) Required packages:
-   - libjemalloc-dev (Linux) or jemalloc (Windows)
+   - jemalloc (Windows only)
 
 #### Scalable Pool (part of libumf)
 

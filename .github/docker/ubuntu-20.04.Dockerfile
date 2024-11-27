@@ -24,7 +24,6 @@ ARG BASE_DEPS="\
 
 # UMF's dependencies
 ARG UMF_DEPS="\
-	libjemalloc-dev \
 	libhwloc-dev \
 	libtbb-dev"
 

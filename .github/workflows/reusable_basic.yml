@@ -18,6 +18,7 @@ jobs:
   ubuntu-build:
     name: Ubuntu
     strategy:
+      fail-fast: false
       matrix:
         os: ['ubuntu-20.04', 'ubuntu-22.04']
         build_type: [Debug, Release]
@@ -124,7 +125,7 @@ jobs:
     - name: Install apt packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y clang cmake libnuma-dev libjemalloc-dev lcov
+        sudo apt-get install -y clang cmake libnuma-dev lcov
 
     - name: Install TBB apt package
       if: matrix.install_tbb == 'ON'
@@ -172,9 +173,10 @@ jobs:
         ${{ matrix.build_type == 'Debug' && matrix.compiler.c == 'gcc' && '-DUMF_USE_COVERAGE=ON' || '' }}
 
     - name: Build UMF
+      working-directory: ${{env.BUILD_DIR}}
       run: |
         ${{ matrix.compiler.cxx == 'icpx' && '. /opt/intel/oneapi/setvars.sh' || true }}
-        cmake --build ${{env.BUILD_DIR}} -j $(nproc)
+        make -j $(nproc) || make VERBOSE=1
 
     - name: Run tests
       working-directory: ${{env.BUILD_DIR}}
@@ -469,7 +471,7 @@ jobs:
         python3 -m pip install -r third_party/requirements.txt
 
     - name: Install hwloc
-      run: brew install hwloc jemalloc tbb
+      run: brew install hwloc tbb automake
 
     - name: Configure build
       run: >
