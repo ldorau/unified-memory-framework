@@ -18,6 +18,7 @@ jobs:
   ubuntu-build:
     name: Ubuntu
     strategy:
+      fail-fast: false
       matrix:
         os: ['ubuntu-20.04', 'ubuntu-22.04']
         build_type: [Debug, Release]
@@ -172,9 +173,10 @@ jobs:
         ${{ matrix.build_type == 'Debug' && matrix.compiler.c == 'gcc' && '-DUMF_USE_COVERAGE=ON' || '' }}
 
     - name: Build UMF
+      working-directory: ${{env.BUILD_DIR}}
       run: |
         ${{ matrix.compiler.cxx == 'icpx' && '. /opt/intel/oneapi/setvars.sh' || true }}
-        cmake --build ${{env.BUILD_DIR}} -j $(nproc)
+        make -j $(nproc) || make VERBOSE=1
 
     - name: Run tests
       working-directory: ${{env.BUILD_DIR}}
