@@ -24,7 +24,7 @@
 
 // The Windows version of jemalloc uses API with je_ prefix,
 // while the Linux one does not.
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__APPLE__)
 #define je_mallocx mallocx
 #define je_dallocx dallocx
 #define je_rallocx rallocx
