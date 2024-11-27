@@ -143,11 +143,11 @@ else()
         COMMAND ./autogen.sh
         WORKING_DIRECTORY ${jemalloc_targ_SOURCE_DIR}
         OUTPUT ${jemalloc_targ_SOURCE_DIR}/configure)
-
-    # TODO: add --with-jemalloc-prefix=je_ option
     add_custom_command(
-        COMMAND ./configure --prefix=${jemalloc_targ_BINARY_DIR}
-                --disable-initial-exec-tls CFLAGS=-fPIC CXXFLAGS=-fPIC
+        COMMAND
+            ./configure --prefix=${jemalloc_targ_BINARY_DIR}
+            --with-jemalloc-prefix=je_ --disable-initial-exec-tls CFLAGS=-fPIC
+            CXXFLAGS=-fPIC
         WORKING_DIRECTORY ${jemalloc_targ_SOURCE_DIR}
         OUTPUT ${jemalloc_targ_SOURCE_DIR}/Makefile
         DEPENDS ${jemalloc_targ_SOURCE_DIR}/configure)
