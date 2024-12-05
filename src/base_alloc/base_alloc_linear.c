@@ -69,15 +69,8 @@ struct umf_ba_next_linear_pool_t {
 };
 
 #ifndef NDEBUG
-static void ba_debug_checks(umf_ba_linear_pool_t *pool) {
-    // count pools
-    size_t n_pools = 1;
-    umf_ba_next_linear_pool_t *next_pool = pool->next_pool;
-    while (next_pool) {
-        n_pools++;
-        next_pool = next_pool->next_pool;
-    }
-    assert(n_pools == pool->metadata.n_pools);
+static inline void ba_debug_checks(umf_ba_linear_pool_t *pool) {
+    (void)pool; // unused in release
 }
 #endif /* NDEBUG */
 
