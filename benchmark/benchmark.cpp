@@ -217,14 +217,13 @@ UMF_BENCHMARK_REGISTER_F(alloc_benchmark, disjoint_pool_fix)
     ->Threads(1);
 
 // TODO: debug why this crashes
-/*UMF_BENCHMARK_TEMPLATE_DEFINE(alloc_benchmark, disjoint_pool_uniform,
+UMF_BENCHMARK_TEMPLATE_DEFINE(alloc_benchmark, disjoint_pool_uniform,
                               uniform_alloc_size,
                               pool_allocator<disjoint_pool<os_provider>>);
 UMF_BENCHMARK_REGISTER_F(alloc_benchmark, disjoint_pool_uniform)
     ->Args({10000, 0, 8, 64 * 1024, 8})
-    //    ->Threads(4)
-    ->Threads(1);
-*/
+    //    ->Threads(1)
+    ->Threads(4);
 #endif
 
 #ifdef UMF_POOL_JEMALLOC_ENABLED
