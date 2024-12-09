@@ -166,9 +166,9 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseTest_basic_provider) {
 
 TEST_P(CoarseWithMemoryStrategyTest, coarseTest_basic_fixed_memory) {
     // preallocate some memory and initialize the vector with zeros
-    const size_t buff_size = 20 * MB;
+    const size_t buff_size = 20 * MB + coarse_params.page_size;
     std::vector<char> buffer(buff_size, 0);
-    void *buf = (void *)buffer.data();
+    void *buf = (void *)ALIGN_UP_SAFE((uintptr_t)buffer.data(), coarse_params.page_size);
     ASSERT_NE(buf, nullptr);
 
     coarse_params.cb.alloc = NULL;
@@ -206,9 +206,9 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseTest_basic_fixed_memory) {
 
 TEST_P(CoarseWithMemoryStrategyTest, coarseTest_fixed_memory_various) {
     // preallocate some memory and initialize the vector with zeros
-    const size_t buff_size = 20 * MB;
+    const size_t buff_size = 20 * MB + coarse_params.page_size;
     std::vector<char> buffer(buff_size, 0);
-    void *buf = (void *)buffer.data();
+    void *buf = (void *)ALIGN_UP_SAFE((uintptr_t)buffer.data(), coarse_params.page_size);
     ASSERT_NE(buf, nullptr);
 
     coarse_params.cb.alloc = NULL;
@@ -1253,9 +1253,9 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseTest_alignment_provider) {
 
 TEST_P(CoarseWithMemoryStrategyTest, coarseTest_alignment_fixed_memory) {
     // preallocate some memory and initialize the vector with zeros
-    const size_t alloc_size = 40 * MB;
+    const size_t alloc_size = 40 * MB + coarse_params.page_size;
     std::vector<char> buffer(alloc_size, 0);
-    void *buf = (void *)buffer.data();
+    void *buf = (void *)ALIGN_UP_SAFE((uintptr_t)buffer.data(), coarse_params.page_size);
     ASSERT_NE(buf, nullptr);
 
     coarse_params.cb.alloc = NULL;
