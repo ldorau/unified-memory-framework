@@ -223,8 +223,6 @@ static umf_result_t devdax_initialize(void *params, void **provider) {
 
     if (!is_dax) {
         LOG_ERR("mapping the devdax with MAP_SYNC failed: %s", in_params->path);
-        ret = UMF_RESULT_ERROR_UNKNOWN;
-        goto err_unmap_devdax;
     }
 
     LOG_DEBUG("devdax memory mapped (path=%s, size=%zu, addr=%p)",
@@ -479,12 +477,6 @@ static umf_result_t devdax_open_ipc_handle(void *provider,
     if (!is_dax) {
         LOG_ERR("mapping the devdax with MAP_SYNC failed: %s",
                 devdax_ipc_data->path);
-
-        if (addr) {
-            utils_munmap(addr, length_aligned);
-        }
-
-        return UMF_RESULT_ERROR_UNKNOWN;
     }
 
     LOG_DEBUG("devdax mapped (path: %s, size: %zu, protection: %i, fd: %i, "
