@@ -113,7 +113,7 @@ umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
     }
 
     if (TRACKER == NULL) {
-        LOG_ERR("tracker does not exist");
+        // LOG_ERR("tracker does not exist");
         return UMF_RESULT_ERROR_NOT_SUPPORTED;
     }
 

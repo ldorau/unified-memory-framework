@@ -402,7 +402,7 @@ void free(void *ptr) {
     }
 #endif /* _WIN32 */
 
-    LOG_ERR("free() failed: %p", ptr);
+    // LOG_ERR("free() failed: %p", ptr);
 
     return;
 }
