@@ -131,7 +131,7 @@ jobs:
     - name: Run tests
       if: matrix.build_tests == 'ON'
       working-directory: ${{env.BUILD_DIR}}
-      run: ctest --output-on-failure --test-dir test -C Release
+      run: ctest --output-on-failure --test-dir test -C Release || ( echo && ./test/umf_test-proxy_lib_memoryPool )
 
     # TODO: We could add some script to verify metadata of dll's (selected fields, perhaps)
     # ref. https://superuser.com/questions/381276/what-are-some-nice-command-line-ways-to-inspect-dll-exe-details

@@ -65,6 +65,11 @@
 #include "utils_common.h"
 #include "utils_concurrency.h"
 
+#ifdef DEBUG_BASE_ALLOC
+#define umf_ba_global_alloc malloc
+#define umf_ba_global_free free
+#endif /* DEBUG_BASE_ALLOC */
+
 /*
  * A node that has been deleted is left untouched for this many delete
  * cycles.  Reads have guaranteed correctness if they took no longer than
