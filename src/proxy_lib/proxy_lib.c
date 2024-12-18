@@ -237,8 +237,8 @@ void proxy_lib_create_common(void) {
         exit(-1);
     }
 
-    umf_result = umfPoolCreate(umfPoolManagerOps(), OS_memory_provider, NULL, 0,
-                               &Proxy_pool);
+    umf_result = umfPoolCreate(umfPoolManagerOps(), OS_memory_provider, NULL,
+                               UMF_POOL_CREATE_FLAG_IN_PROXY_LIB, &Proxy_pool);
     if (umf_result != UMF_RESULT_SUCCESS) {
         LOG_ERR("creating UMF pool manager failed");
         exit(-1);

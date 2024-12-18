@@ -37,6 +37,8 @@ typedef enum umf_pool_create_flag_t {
          << 0), ///< Pool will own the specified provider and destroy it in umfPoolDestroy
     UMF_POOL_CREATE_FLAG_DISABLE_TRACKING =
         (1 << 1), ///< Pool will not track memory allocations
+    UMF_POOL_CREATE_FLAG_IN_PROXY_LIB =
+        (1 << 2), ///< Pool was created in the proxy library
     /// @cond
     UMF_POOL_CREATE_FLAG_FORCE_UINT32 = 0x7fffffff
     /// @endcond

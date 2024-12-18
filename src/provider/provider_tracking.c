@@ -22,6 +22,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -154,6 +155,7 @@ typedef struct umf_tracking_memory_provider_t {
     umf_memory_pool_handle_t pool;
     critnib *ipcCache;
     ipc_mapped_handle_cache_handle_t hIpcMappedCache;
+    bool in_proxy_lib;
 } umf_tracking_memory_provider_t;
 
 typedef struct umf_tracking_memory_provider_t umf_tracking_memory_provider_t;
@@ -470,6 +472,13 @@ static void trackingFinalize(void *provider) {
     // Do not clear the tracker if we are running in the proxy library,
     // because it may need those resources till
     // the very end of exiting the application.
+    if (p->in_proxy_lib) {
+        return;
+    }
+
+    // Do not clear the tracker if we are running in the proxy library,
+    // because it may need those resources till
+    // the very end of exiting the application.
     if (!utils_is_running_in_proxy_lib()) {
         umfIpcHandleMappedCacheDestroy(p->hIpcMappedCache);
         clear_tracker_for_the_pool(p->hTracker, p->pool);
@@ -767,9 +776,11 @@ umf_memory_provider_ops_t UMF_TRACKING_MEMORY_PROVIDER_OPS = {
     .ipc.open_ipc_handle = trackingOpenIpcHandle,
     .ipc.close_ipc_handle = trackingCloseIpcHandle};
 
-umf_result_t umfTrackingMemoryProviderCreate(
-    umf_memory_provider_handle_t hUpstream, umf_memory_pool_handle_t hPool,
-    umf_memory_provider_handle_t *hTrackingProvider) {
+umf_result_t
+umfTrackingMemoryProviderCreate(umf_memory_provider_handle_t hUpstream,
+                                umf_memory_pool_handle_t hPool,
+                                umf_memory_provider_handle_t *hTrackingProvider,
+                                umf_pool_create_flags_t flags) {
 
     umf_tracking_memory_provider_t params;
     params.hUpstream = hUpstream;
@@ -787,6 +798,8 @@ umf_result_t umfTrackingMemoryProviderCreate(
 
     params.hIpcMappedCache =
         umfIpcHandleMappedCacheCreate(ipcMappedCacheEvictionCallback);
+
+    params.in_proxy_lib = flags & UMF_POOL_CREATE_FLAG_IN_PROXY_LIB;
 
     LOG_DEBUG("upstream=%p, tracker=%p, "
               "pool=%p, ipcCache=%p, hIpcMappedCache=%p",

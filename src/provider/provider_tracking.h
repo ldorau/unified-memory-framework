@@ -52,9 +52,11 @@ umf_result_t umfMemoryTrackerGetAllocInfo(const void *ptr,
 
 // Creates a memory provider that tracks each allocation/deallocation through umf_memory_tracker_handle_t and
 // forwards all requests to hUpstream memory Provider. hUpstream lifetime should be managed by the user of this function.
-umf_result_t umfTrackingMemoryProviderCreate(
-    umf_memory_provider_handle_t hUpstream, umf_memory_pool_handle_t hPool,
-    umf_memory_provider_handle_t *hTrackingProvider);
+umf_result_t
+umfTrackingMemoryProviderCreate(umf_memory_provider_handle_t hUpstream,
+                                umf_memory_pool_handle_t hPool,
+                                umf_memory_provider_handle_t *hTrackingProvider,
+                                umf_pool_create_flags_t flags);
 
 void umfTrackingMemoryProviderGetUpstreamProvider(
     umf_memory_provider_handle_t hTrackingProvider,
