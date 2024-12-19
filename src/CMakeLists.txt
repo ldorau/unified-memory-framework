@@ -172,6 +172,10 @@ if(NOT WINDOWS AND UMF_POOL_JEMALLOC_ENABLED)
     add_dependencies(umf jemalloc)
 endif()
 
+if(DEBUG_BASE_ALLOC)
+    target_compile_definitions(umf PRIVATE DEBUG_BASE_ALLOC=1)
+endif()
+
 if(UMF_BUILD_LEVEL_ZERO_PROVIDER)
     if(LINUX)
         # WA for error ze_api.h:14234:20: no newline at end of file

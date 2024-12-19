@@ -467,17 +467,15 @@ static void trackingFinalize(void *provider) {
     umf_tracking_memory_provider_t *p =
         (umf_tracking_memory_provider_t *)provider;
 
-    umfIpcHandleMappedCacheDestroy(p->hIpcMappedCache);
-
-    critnib_delete(p->ipcCache);
-
     // Do not clear the tracker if we are running in the proxy library,
     // because it may need those resources till
     // the very end of exiting the application.
     if (!utils_is_running_in_proxy_lib()) {
+        umfIpcHandleMappedCacheDestroy(p->hIpcMappedCache);
         clear_tracker_for_the_pool(p->hTracker, p->pool);
     }
 
+    critnib_delete(p->ipcCache);
     umf_ba_global_free(provider);
 }
 

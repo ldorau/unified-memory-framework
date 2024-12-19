@@ -87,6 +87,11 @@ function(build_umf_test)
         endif()
     endif()
 
+    if(BA_SOURCES_FOR_TEST AND DEBUG_BASE_ALLOC)
+        target_compile_definitions(${TEST_TARGET_NAME}
+                                   PRIVATE DEBUG_BASE_ALLOC=1)
+    endif()
+
     target_link_directories(${TEST_TARGET_NAME} PRIVATE ${LIB_DIRS})
 
     target_include_directories(
@@ -171,6 +176,10 @@ endif()
 if(UMF_BUILD_SHARED_LIBRARY)
     # if build as shared library, ba symbols won't be visible in tests
     set(BA_SOURCES_FOR_TEST ${BA_SOURCES})
+    if(DEBUG_BASE_ALLOC)
+        set(BA_SOURCES_FOR_TEST ${BA_SOURCES_FOR_TEST}
+                                ${CMAKE_SOURCE_DIR}/src/critnib/critnib.c)
+    endif()
 endif()
 
 add_umf_test(NAME base SRCS base.cpp)
@@ -469,7 +478,7 @@ if(UMF_PROXY_LIB_ENABLED AND UMF_BUILD_SHARED_LIBRARY)
              malloc_compliance_tests.cpp
         LIBS ${UMF_UTILS_FOR_TEST} umf_proxy)
     target_compile_definitions(umf_test-proxy_lib_memoryPool
-                               PUBLIC UMF_PROXY_LIB_ENABLED=1)
+                               PRIVATE UMF_PROXY_LIB_ENABLED=1)
 endif()
 
 add_umf_test(
