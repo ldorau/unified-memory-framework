@@ -12,17 +12,23 @@
 #include <umf.h>
 #include <umf/providers/provider_cuda.h>
 
+#include "utils_log.h"
+
 #if defined(UMF_NO_CUDA_PROVIDER)
 
 umf_result_t umfCUDAMemoryProviderParamsCreate(
     umf_cuda_memory_provider_params_handle_t *hParams) {
     (void)hParams;
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
 umf_result_t umfCUDAMemoryProviderParamsDestroy(
     umf_cuda_memory_provider_params_handle_t hParams) {
     (void)hParams;
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
@@ -30,6 +36,8 @@ umf_result_t umfCUDAMemoryProviderParamsSetContext(
     umf_cuda_memory_provider_params_handle_t hParams, void *hContext) {
     (void)hParams;
     (void)hContext;
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
@@ -37,6 +45,8 @@ umf_result_t umfCUDAMemoryProviderParamsSetDevice(
     umf_cuda_memory_provider_params_handle_t hParams, int hDevice) {
     (void)hParams;
     (void)hDevice;
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
@@ -45,11 +55,15 @@ umf_result_t umfCUDAMemoryProviderParamsSetMemoryType(
     umf_usm_memory_type_t memoryType) {
     (void)hParams;
     (void)memoryType;
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return UMF_RESULT_ERROR_NOT_SUPPORTED;
 }
 
 umf_memory_provider_ops_t *umfCUDAMemoryProviderOps(void) {
     // not supported
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
+    LOG_ERR("UMF_NO_CUDA_PROVIDER is defined!");
     return NULL;
 }
 
@@ -202,23 +216,29 @@ static void init_cu_global_state(void) {
 
 umf_result_t umfCUDAMemoryProviderParamsCreate(
     umf_cuda_memory_provider_params_handle_t *hParams) {
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     libumfInit();
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     if (!hParams) {
         LOG_ERR("CUDA Memory Provider params handle is NULL");
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     umf_cuda_memory_provider_params_handle_t params_data =
         umf_ba_global_alloc(sizeof(umf_cuda_memory_provider_params_t));
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     if (!params_data) {
         LOG_ERR("Cannot allocate memory for CUDA Memory Provider params");
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     params_data->cuda_context_handle = NULL;
     params_data->cuda_device_handle = -1;
     params_data->memory_type = UMF_MEMORY_TYPE_UNKNOWN;
 
+    LOG_ERR("DEBUG >>> %s:%i", __FILE__, __LINE__);
     *hParams = params_data;
 
     return UMF_RESULT_SUCCESS;
