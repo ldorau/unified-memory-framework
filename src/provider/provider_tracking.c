@@ -60,6 +60,20 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
     LOG_ERR("failed to insert tracker value, ret=%d, ptr=%p, pool=%p, size=%zu",
             ret, ptr, (void *)pool, size);
 
+    uintptr_t rkey;
+    tracker_value_t *rvalue;
+    int found = critnib_find(hTracker->map, (uintptr_t)ptr, FIND_LE,
+                             (void *)&rkey, (void **)&rvalue);
+    if (!found || (uintptr_t)ptr >= rkey + rvalue->size) {
+        LOG_DEBUG("pointer %p not found in the tracker, TRACKER=%p", ptr,
+                  (void *)TRACKER);
+    } else {
+        LOG_DEBUG("Pointer %p FOUND in the tracker, TRACKER=%p, base=%p, "
+                  "size=%zu, pool=%p",
+                  ptr, (void *)TRACKER, (void *)rkey, rvalue->size,
+                  rvalue->pool);
+    }
+
     umf_ba_free(hTracker->tracker_allocator, value);
 
     if (ret == ENOMEM) {
