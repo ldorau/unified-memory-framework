@@ -47,6 +47,9 @@ static void *proxy_aligned_malloc(void *pool, size_t size, size_t alignment) {
     void *ptr;
     struct proxy_memory_pool *hPool = (struct proxy_memory_pool *)pool;
 
+    fprintf(stderr, "proxy_aligned_malloc(pool=%p, size=%zu, alignment=%zu)\n",
+            pool, size, alignment);
+
     umf_result_t ret =
         umfMemoryProviderAlloc(hPool->hProvider, size, alignment, &ptr);
     if (ret != UMF_RESULT_SUCCESS) {

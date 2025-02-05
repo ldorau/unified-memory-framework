@@ -185,11 +185,18 @@ static umf_result_t trackingAlloc(void *hProvider, size_t size,
         return ret;
     }
 
+    LOG_DEBUG("umfMemoryProviderAlloc(provider=%p, size=%zu) returned ptr = %p",
+              (void *)p->hUpstream, size, *ptr);
+
     umf_result_t ret2 = umfMemoryTrackerAdd(p->hTracker, p->pool, *ptr, size);
     if (ret2 != UMF_RESULT_SUCCESS) {
         LOG_ERR("failed to add allocated region to the tracker, ptr = %p, size "
                 "= %zu, ret = %d",
                 *ptr, size, ret2);
+    } else {
+        LOG_DEBUG("added allocated region to the tracker, ptr = %p, size = "
+                  "%zu, ret = %d",
+                  *ptr, size, ret2);
     }
 
     return ret;
