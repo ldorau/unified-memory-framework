@@ -382,15 +382,18 @@ static umf_result_t cu_memory_provider_alloc(void *provider, size_t size,
     switch (cu_provider->memory_type) {
     case UMF_MEMORY_TYPE_HOST: {
         cu_result = g_cu_ops.cuMemAllocHost(resultPtr, size);
+        LOG_DEBUG("cuMemAlloc-HOST(size=%zu) = %p", size, *resultPtr);
         break;
     }
     case UMF_MEMORY_TYPE_DEVICE: {
         cu_result = g_cu_ops.cuMemAlloc((CUdeviceptr *)resultPtr, size);
+        LOG_DEBUG("cuMemAlloc-DEVICE(size=%zu) = %p", size, *resultPtr);
         break;
     }
     case UMF_MEMORY_TYPE_SHARED: {
         cu_result = g_cu_ops.cuMemAllocManaged((CUdeviceptr *)resultPtr, size,
                                                CU_MEM_ATTACH_GLOBAL);
+        LOG_DEBUG("cuMemAlloc-SHARED(size=%zu) = %p", size, *resultPtr);
         break;
     }
     default:
@@ -443,11 +446,13 @@ static umf_result_t cu_memory_provider_free(void *provider, void *ptr,
     CUresult cu_result = CUDA_SUCCESS;
     switch (cu_provider->memory_type) {
     case UMF_MEMORY_TYPE_HOST: {
+        LOG_DEBUG("cuMemFree-HOST(%p)", ptr);
         cu_result = g_cu_ops.cuMemFreeHost(ptr);
         break;
     }
     case UMF_MEMORY_TYPE_SHARED:
     case UMF_MEMORY_TYPE_DEVICE: {
+        LOG_DEBUG("cuMemFree-DEVICE-SHARED(%p)", ptr);
         cu_result = g_cu_ops.cuMemFree((CUdeviceptr)ptr);
         break;
     }
