@@ -282,6 +282,8 @@ else()
             SOURCE_SUBDIR contrib/windows-cmake/ FIND_PACKAGE_ARGS)
         FetchContent_MakeAvailable(hwloc_targ)
 
+        message(STATUS "hwloc CMAKE_GENERATOR: ${CMAKE_GENERATOR}")
+
         if(CMAKE_GENERATOR STREQUAL "Ninja")
             add_custom_command(
                 COMMAND ${CMAKE_COMMAND}
@@ -316,6 +318,9 @@ else()
 
             set(LIBHWLOC_LIBRARY_DIRS ${hwloc_targ_BINARY_DIR}/lib)
             set(LIBHWLOC_LIBRARIES ${hwloc_targ_BINARY_DIR}/lib/hwloc.lib)
+        elseif(CMAKE_GENERATOR STREQUAL "NMake Makefiles")
+            set(LIBHWLOC_LIBRARY_DIRS ${hwloc_targ_BINARY_DIR}/)
+            set(LIBHWLOC_LIBRARIES ${hwloc_targ_BINARY_DIR}/hwloc.lib)
         else()
             set(LIBHWLOC_LIBRARY_DIRS ${hwloc_targ_BINARY_DIR}/$<CONFIG>)
             set(LIBHWLOC_LIBRARIES ${hwloc_targ_BINARY_DIR}/$<CONFIG>/hwloc.lib)
