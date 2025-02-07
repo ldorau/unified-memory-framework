@@ -456,6 +456,9 @@ static void clear_tracker_for_the_pool(umf_memory_tracker_handle_t hTracker,
 
         n_items++;
 
+        LOG_ERR("[%zu] non-freed: ptr=%p, size=%zu, pool=%p", n_items,
+                (void *)rkey, value->size, (void *)value->pool);
+
         void *removed_value = critnib_remove(hTracker->map, rkey);
         assert(removed_value == rvalue);
         umf_ba_free(hTracker->tracker_allocator, removed_value);
