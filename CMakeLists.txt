@@ -47,6 +47,10 @@ find_package(PkgConfig)
 # Set UMF build options (and CACHE variables)
 # --------------------------------------------------------------------------- #
 
+if(UMF_CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE ${UMF_CMAKE_BUILD_TYPE})
+endif()
+
 # Define a list to store the names of all options
 set(UMF_OPTIONS_LIST "")
 list(APPEND UMF_OPTIONS_LIST CMAKE_BUILD_TYPE)
