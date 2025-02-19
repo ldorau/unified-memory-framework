@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  *
  * Under the Apache License v2.0 with LLVM Exceptions. See LICENSE.TXT.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -27,15 +27,17 @@
 #define TLS_MSG_BUF_LEN 1024
 
 typedef struct fixed_memory_provider_t {
-    void *base;       // base address of memory
-    size_t size;      // size of the memory region
-    coarse_t *coarse; // coarse library handle
+    void *base;         // base address of memory
+    size_t size;        // size of the memory region
+    unsigned int flags; // flags of the memory region
+    coarse_t *coarse;   // coarse library handle
 } fixed_memory_provider_t;
 
 // Fixed Memory provider settings struct
 typedef struct umf_fixed_memory_provider_params_t {
     void *ptr;
     size_t size;
+    unsigned int flags;
 } umf_fixed_memory_provider_params_t;
 
 typedef struct fixed_last_native_error_t {
@@ -91,6 +93,15 @@ static umf_result_t fixed_initialize(void *params, void **provider) {
     umf_fixed_memory_provider_params_t *in_params =
         (umf_fixed_memory_provider_params_t *)params;
 
+    if (in_params->flags & UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR) {
+        umf_memory_pool_handle_t pool = umfPoolByPtr(in_params->ptr);
+        if (pool == NULL) {
+            LOG_ERR("The UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR flag is set, but "
+                    "the given pointer does not belong to any UMF pool");
+            return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+        }
+    }
+
     fixed_memory_provider_t *fixed_provider =
         umf_ba_global_alloc(sizeof(*fixed_provider));
     if (!fixed_provider) {
@@ -122,6 +133,7 @@ static umf_result_t fixed_initialize(void *params, void **provider) {
 
     fixed_provider->base = in_params->ptr;
     fixed_provider->size = in_params->size;
+    fixed_provider->flags = in_params->flags;
 
     // add the entire memory as a single block
     ret = coarse_add_memory_fixed(coarse, fixed_provider->base,
@@ -333,5 +345,17 @@ umf_result_t umfFixedMemoryProviderParamsSetMemory(
 
     hParams->ptr = ptr;
     hParams->size = size;
+    return UMF_RESULT_SUCCESS;
+}
+
+umf_result_t umfFixedMemoryProviderParamsSetFlags(
+    umf_fixed_memory_provider_params_handle_t hParams, unsigned int flags) {
+    if (hParams == NULL) {
+        LOG_ERR("Memory Provider params handle is NULL");
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    }
+
+    hParams->flags = flags;
+
     return UMF_RESULT_SUCCESS;
 }
