@@ -35,7 +35,6 @@ typedef struct fixed_memory_provider_t {
     coarse_t *coarse;   // coarse library handle
 
     // used only when the UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR flag is set
-    size_t ptr_orig_size; // original size of the memory region in the tracker
     umf_memory_provider_handle_t
         trackingProvider; // tracking provider of the original memory pool
 } fixed_memory_provider_t;
@@ -92,7 +91,6 @@ static umf_result_t fixed_allocation_merge_cb(void *provider, void *lowPtr,
 
 static umf_result_t fixed_initialize(void *params, void **provider) {
     umf_result_t ret;
-    size_t ptr_orig_size = 0;
     umf_memory_provider_handle_t trackingProvider = NULL;
 
     if (params == NULL) {
@@ -116,12 +114,11 @@ static umf_result_t fixed_initialize(void *params, void **provider) {
             return ret;
         }
 
-        ret = trackerShrinkEntry(trackingProvider, in_params->ptr,
-                                 in_params->size, &ptr_orig_size);
+        ret = trackerRemoveEntry(trackingProvider, in_params->ptr,
+                                 in_params->size);
         if (ret != UMF_RESULT_SUCCESS) {
-            LOG_ERR(
-                "cannot shrink the allocation %p in the tracker to size %zu",
-                in_params->ptr, in_params->size);
+            LOG_ERR("cannot remove the allocation %p from the tracker",
+                    in_params->ptr);
             return ret;
         }
     }
@@ -158,7 +155,6 @@ static umf_result_t fixed_initialize(void *params, void **provider) {
     fixed_provider->base = in_params->ptr;
     fixed_provider->size = in_params->size;
     fixed_provider->flags = in_params->flags;
-    fixed_provider->ptr_orig_size = ptr_orig_size;
     fixed_provider->trackingProvider = trackingProvider;
 
     // add the entire memory as a single block
@@ -184,16 +180,13 @@ static void fixed_finalize(void *provider) {
     fixed_memory_provider_t *fixed_provider = provider;
     coarse_delete(fixed_provider->coarse);
 
-    if (fixed_provider->trackingProvider &&
-        (fixed_provider->ptr_orig_size >= fixed_provider->size)) {
-        umf_result_t ret = trackerGrowEntry(
-            fixed_provider->trackingProvider, fixed_provider->base,
-            fixed_provider->size, fixed_provider->ptr_orig_size);
+    if (fixed_provider->trackingProvider) {
+        umf_result_t ret =
+            trackerAddEntry(fixed_provider->trackingProvider,
+                            fixed_provider->base, fixed_provider->size);
         if (ret != UMF_RESULT_SUCCESS) {
-            LOG_ERR("cannot grow the allocation %p in the tracker (from size "
-                    "%zu to size %zu)",
-                    fixed_provider->base, fixed_provider->size,
-                    fixed_provider->ptr_orig_size);
+            LOG_ERR("cannot add the allocation %p to the tracker",
+                    fixed_provider->base);
         }
     }
 

@@ -556,12 +556,11 @@ TEST_P(FixedProviderTest, pool_from_ptr_whole_size_success) {
     umfPoolDestroy(proxyFixedPool);
 }
 
-TEST_P(FixedProviderTest, pool_from_ptr_half_size_success) {
+TEST_P(FixedProviderTest, pool_from_ptr_negative_half_size) {
     umf_result_t umf_result;
     size_t size_of_first_alloc;
     size_t size_of_pool_from_ptr;
     void *ptr_for_pool = nullptr;
-    void *ptr = nullptr;
 
     umf_memory_pool_handle_t proxyFixedPool = nullptr;
     umf_result = umfPoolCreate(umfProxyPoolOps(), provider.get(), nullptr, 0,
@@ -587,24 +586,9 @@ TEST_P(FixedProviderTest, pool_from_ptr_half_size_success) {
     umf_memory_provider_handle_t providerFromPtr = nullptr;
     umf_result = umfMemoryProviderCreate(umfFixedMemoryProviderOps(), params,
                                          &providerFromPtr);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(providerFromPtr, nullptr);
+    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+    ASSERT_EQ(providerFromPtr, nullptr);
 
-    umf_memory_pool_handle_t poolFromPtr = nullptr;
-    umf_result = umfPoolCreate(umfProxyPoolOps(), providerFromPtr, nullptr, 0,
-                               &poolFromPtr);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-
-    ptr = umfPoolMalloc(poolFromPtr, size_of_pool_from_ptr);
-    ASSERT_NE(ptr, nullptr);
-
-    memset(ptr, 0xFF, size_of_pool_from_ptr);
-
-    umf_result = umfPoolFree(poolFromPtr, ptr);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-
-    umfPoolDestroy(poolFromPtr);
-    umfMemoryProviderDestroy(providerFromPtr);
     umfFixedMemoryProviderParamsDestroy(params);
 
     umf_result = umfPoolFree(proxyFixedPool, ptr_for_pool);
