@@ -122,5 +122,6 @@ EXPORTS
     umfFixedMemoryProviderOps
     umfFixedMemoryProviderParamsCreate
     umfFixedMemoryProviderParamsDestroy
+    umfFixedMemoryProviderParamsSetFlags
     umfLevelZeroMemoryProviderParamsSetFreePolicy
     umfLevelZeroMemoryProviderParamsSetDeviceOrdinal
