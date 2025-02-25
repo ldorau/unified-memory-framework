@@ -474,4 +474,24 @@ TEST_P(umfPoolTest, mallocUsableSize) {
 #endif
 }
 
+TEST_P(umfPoolTest, umfPoolAlignedMalloc) {
+    umf_result_t umf_result;
+    size_t size_of_first_alloc;
+    void *ptr_for_pool = nullptr;
+
+    umf_memory_pool_handle_t pool_get = pool.get();
+    size_of_first_alloc = 2 * 1024 * 1024; // 2MB
+
+    if (!umf_test::isAlignedAllocSupported(pool_get)) {
+        GTEST_SKIP();
+    }
+
+    ptr_for_pool = umfPoolAlignedMalloc(pool_get, size_of_first_alloc,
+                                        utils_get_page_size());
+    ASSERT_NE(ptr_for_pool, nullptr);
+
+    umf_result = umfPoolFree(pool_get, ptr_for_pool);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+}
+
 #endif /* UMF_TEST_POOL_FIXTURES_HPP */
