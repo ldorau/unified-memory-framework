@@ -394,29 +394,6 @@ TEST_P(FixedProviderTest, split) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
 }
 
-TEST_P(FixedProviderTest, params_set_flags_negative) {
-    umf_result_t umf_result;
-
-    // Create provider parameters
-    umf_fixed_memory_provider_params_handle_t params = nullptr;
-    umf_result =
-        umfFixedMemoryProviderParamsCreate(&params, memory_buffer, memory_size);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-    ASSERT_NE(params, nullptr);
-
-    // params is NULL
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        NULL, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    // the pointer does not belong to any UMF pool
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        params, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
-
-    umfFixedMemoryProviderParamsDestroy(params);
-}
-
 TEST_P(FixedProviderTest, pool_from_ptr_negative_wrong_ptr) {
     umf_result_t umf_result;
     size_t size_of_first_alloc;
@@ -439,10 +416,6 @@ TEST_P(FixedProviderTest, pool_from_ptr_negative_wrong_ptr) {
                                                     size_of_pool_from_ptr);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(params, nullptr);
-
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        params, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
 
     umf_result = umfPoolFree(proxyFixedPool, ptr_for_pool);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
@@ -481,10 +454,6 @@ TEST_P(FixedProviderTest, pool_from_ptr_negative_shrink_size_too_big) {
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(params, nullptr);
 
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        params, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
-
     umf_memory_provider_handle_t providerFromPtr = nullptr;
     umf_result = umfMemoryProviderCreate(umfFixedMemoryProviderOps(), params,
                                          &providerFromPtr);
@@ -522,10 +491,6 @@ TEST_P(FixedProviderTest, pool_from_ptr_whole_size_success) {
                                                     size_of_pool_from_ptr);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(params, nullptr);
-
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        params, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
 
     umf_memory_provider_handle_t providerFromPtr = nullptr;
     umf_result = umfMemoryProviderCreate(umfFixedMemoryProviderOps(), params,
@@ -579,10 +544,6 @@ TEST_P(FixedProviderTest, pool_from_ptr_half_size_success) {
                                                     size_of_pool_from_ptr);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
     ASSERT_NE(params, nullptr);
-
-    umf_result = umfFixedMemoryProviderParamsSetFlags(
-        params, UMF_FIXED_FLAG_CREATE_FROM_POOL_PTR);
-    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
 
     umf_memory_provider_handle_t providerFromPtr = nullptr;
     umf_result = umfMemoryProviderCreate(umfFixedMemoryProviderOps(), params,
