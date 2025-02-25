@@ -37,6 +37,8 @@ struct umf_memory_tracker_t {
 typedef struct tracker_alloc_info_t {
     umf_memory_pool_handle_t pool;
     size_t size;
+    // the previous entry with the same address
+    struct tracker_alloc_info_t *prev;
 } tracker_alloc_info_t;
 
 static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
@@ -44,61 +46,122 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
                                         const void *ptr, size_t size) {
     assert(ptr);
 
-    tracker_alloc_info_t *value = umf_ba_alloc(hTracker->alloc_info_allocator);
-    if (value == NULL) {
-        LOG_ERR("failed to allocate tracker value, ptr=%p, size=%zu", ptr,
+    umf_result_t umf_result = UMF_RESULT_ERROR_UNKNOWN;
+
+    tracker_alloc_info_t *new_value =
+        umf_ba_alloc(hTracker->alloc_info_allocator);
+    if (new_value == NULL) {
+        LOG_ERR("failed to allocate a tracker value, ptr=%p, size=%zu", ptr,
                 size);
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
-    value->pool = pool;
-    value->size = size;
+    new_value->pool = pool;
+    new_value->size = size;
+    new_value->prev = NULL;
 
-    int ret =
-        critnib_insert(hTracker->alloc_segments_map, (uintptr_t)ptr, value, 0);
-
+    int ret = critnib_insert(hTracker->alloc_segments_map, (uintptr_t)ptr,
+                             new_value, 0);
     if (ret == 0) {
         LOG_DEBUG(
-            "memory region is added, tracker=%p, ptr=%p, pool=%p, size=%zu",
+            "memory region added to the tracker=%p, ptr=%p, pool=%p, size=%zu",
             (void *)hTracker, ptr, (void *)pool, size);
         return UMF_RESULT_SUCCESS;
     }
 
-    LOG_ERR("failed to insert tracker value, ret=%d, ptr=%p, pool=%p, size=%zu",
-            ret, ptr, (void *)pool, size);
+    // failed to insert to the tracker a new value
 
-    umf_ba_free(hTracker->alloc_info_allocator, value);
-
-    if (ret == ENOMEM) {
-        return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    if (ret != EEXIST) {
+        if (ret == ENOMEM) {
+            umf_result = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+        }
+        goto err_free_new_value;
     }
 
-    return UMF_RESULT_ERROR_UNKNOWN;
+    // there already is an entry with the same address in the tracker
+
+    ret = utils_mutex_lock(&hTracker->splitMergeMutex);
+    if (ret) {
+        goto err_free_new_value;
+    }
+
+    tracker_alloc_info_t *prev_value = (tracker_alloc_info_t *)critnib_get(
+        hTracker->alloc_segments_map, (uintptr_t)ptr);
+    if (!prev_value) {
+        LOG_ERR("the previous region not found in the tracker");
+        goto err_unlock;
+    }
+
+    new_value->prev = prev_value;
+
+    ret = critnib_insert(hTracker->alloc_segments_map, (uintptr_t)ptr,
+                         new_value, 1);
+    if (ret) {
+        goto err_unlock;
+    }
+
+    utils_mutex_unlock(&hTracker->splitMergeMutex);
+
+    LOG_DEBUG(
+        "memory region added to the tracker=%p, ptr=%p, pool=%p, size=%zu",
+        (void *)hTracker, ptr, (void *)pool, size);
+
+    return UMF_RESULT_SUCCESS;
+
+err_unlock:
+    utils_mutex_unlock(&hTracker->splitMergeMutex);
+
+err_free_new_value:
+    umf_ba_free(hTracker->alloc_info_allocator, new_value);
+
+    LOG_ERR("failed to insert a new value to the tracker, ret=%d, ptr=%p, "
+            "pool=%p, size=%zu",
+            ret, ptr, (void *)pool, size);
+
+    return umf_result;
 }
 
 static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
                                            const void *ptr) {
     assert(ptr);
 
+    umf_result_t umf_result = UMF_RESULT_SUCCESS;
+
     // TODO: there is no support for removing partial ranges (or multiple entries
     // in a single remove call) yet.
     // Every umfMemoryTrackerAdd(..., ptr, ...) should have a corresponding
     // umfMemoryTrackerRemove call with the same ptr value.
 
-    void *value = critnib_remove(hTracker->alloc_segments_map, (uintptr_t)ptr);
+    tracker_alloc_info_t *value =
+        critnib_remove(hTracker->alloc_segments_map, (uintptr_t)ptr);
     if (!value) {
         LOG_ERR("pointer %p not found in the alloc_segments_map", ptr);
         return UMF_RESULT_ERROR_UNKNOWN;
     }
 
-    tracker_alloc_info_t *v = value;
-
     LOG_DEBUG("memory region removed: tracker=%p, ptr=%p, size=%zu",
-              (void *)hTracker, ptr, v->size);
+              (void *)hTracker, ptr, value->size);
+
+    if (value->prev) {
+        tracker_alloc_info_t *prev_value = value->prev;
+        int ret = critnib_insert(hTracker->alloc_segments_map, (uintptr_t)ptr,
+                                 prev_value, 0);
+        if (ret) {
+            if (ret == ENOMEM) {
+                umf_result = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+            } else {
+                umf_result = UMF_RESULT_ERROR_UNKNOWN;
+            }
+
+            LOG_ERR("failed to add the previous region to the tracker, ptr = "
+                    "%p, size = %zu, ret = %d",
+                    ptr, prev_value->size, ret);
+        }
+    }
 
     umf_ba_free(hTracker->alloc_info_allocator, value);
 
-    return UMF_RESULT_SUCCESS;
+    return umf_result;
 }
 
 umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr) {
