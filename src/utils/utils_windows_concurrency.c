@@ -72,29 +72,29 @@ void utils_atomic_load_acquire_u64(uint64_t *ptr, uint64_t *out) {
     // NOTE: Windows cl complains about direct accessing 'ptr' which is next
     // accessed using Interlocked* functions (warning 28112 - disabled)
     ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
-    utils_annotate_acquire(ptr);
     LONG64 ret = InterlockedCompareExchange64((LONG64 volatile *)ptr, 0, 0);
+    utils_annotate_acquire(ptr);
     *out = *(uint64_t *)&ret;
 }
 
 void utils_atomic_load_acquire_ptr(void **ptr, void **out) {
     ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
-    utils_annotate_acquire((void *)ptr);
     uintptr_t ret = (uintptr_t)InterlockedCompareExchangePointer(ptr, 0, 0);
+    utils_annotate_acquire((void *)ptr);
     *(uintptr_t *)out = ret;
 }
 
 void utils_atomic_store_release_u64(uint64_t *ptr, uint64_t *val) {
     ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
     ASSERT_IS_ALIGNED((uintptr_t)val, 8);
-    InterlockedExchange64((LONG64 volatile *)ptr, *(LONG64 *)val);
     utils_annotate_release(ptr);
+    InterlockedExchange64((LONG64 volatile *)ptr, *(LONG64 *)val);
 }
 
 void utils_atomic_store_release_ptr(void **ptr, void *val) {
     ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
-    InterlockedExchangePointer(ptr, val);
     utils_annotate_release(ptr);
+    InterlockedExchangePointer(ptr, val);
 }
 
 uint64_t utils_atomic_increment_u64(uint64_t *ptr) {

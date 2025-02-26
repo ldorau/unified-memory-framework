@@ -73,23 +73,23 @@ int utils_write_unlock(utils_rwlock_t *rwlock) {
 }
 
 void utils_atomic_load_acquire_u64(uint64_t *ptr, uint64_t *out) {
-    utils_annotate_acquire(ptr);
     __atomic_load(ptr, out, memory_order_acquire);
+    utils_annotate_acquire(ptr);
 }
 
 void utils_atomic_load_acquire_ptr(void **ptr, void **out) {
-    utils_annotate_acquire((void *)ptr);
     *out = (void *)__atomic_load_n((uintptr_t *)ptr, memory_order_acquire);
+    utils_annotate_acquire((void *)ptr);
 }
 
 void utils_atomic_store_release_u64(uint64_t *ptr, uint64_t *val) {
-    __atomic_store(ptr, val, memory_order_release);
     utils_annotate_release(ptr);
+    __atomic_store(ptr, val, memory_order_release);
 }
 
 void utils_atomic_store_release_ptr(void **ptr, void *val) {
-    __atomic_store_n((uintptr_t *)ptr, (uintptr_t)val, memory_order_release);
     utils_annotate_release(ptr);
+    __atomic_store_n((uintptr_t *)ptr, (uintptr_t)val, memory_order_release);
 }
 
 uint64_t utils_atomic_increment_u64(uint64_t *val) {
