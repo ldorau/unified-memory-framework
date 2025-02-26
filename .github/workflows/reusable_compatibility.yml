@@ -105,12 +105,15 @@ jobs:
       run: |
         cmake --build ${{github.workspace}}/latest_version/build -j $(nproc)
 
+    # NOTE: disable "mempolicy" test as it relies on the specyfic memory layout
+    # of the OS Provider data structure which is incompatible between different
+    # UMF versions
     - name: Run "tag" UMF tests with latest UMF libs (warnings enabled)
       working-directory: ${{github.workspace}}/tag_version/build
       run: >
         UMF_LOG="level:warning;flush:debug;output:stderr;pid:no" 
         LD_LIBRARY_PATH=${{github.workspace}}/latest_version/build/lib/ 
-        ctest --output-on-failure
+        ctest --output-on-failure -E "umf-mempolicy"
  
   windows-build:
     name: Windows
