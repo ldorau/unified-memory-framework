@@ -25,6 +25,7 @@
 #include "utils_log.h"
 
 #define TLS_MSG_BUF_LEN 1024
+#define FIXED_PAGE_SIZE (utils_get_page_size())
 
 typedef struct fixed_memory_provider_t {
     void *base;       // base address of memory
@@ -101,7 +102,7 @@ static umf_result_t fixed_initialize(void *params, void **provider) {
 
     coarse_params_t coarse_params = {0};
     coarse_params.provider = fixed_provider;
-    coarse_params.page_size = utils_get_page_size();
+    coarse_params.page_size = FIXED_PAGE_SIZE;
     // The alloc callback is not available in case of the fixed provider
     // because it is a fixed-size memory provider
     // and the entire memory is added as a single block
@@ -196,7 +197,7 @@ static umf_result_t fixed_get_recommended_page_size(void *provider, size_t size,
     (void)provider; // unused
     (void)size;     // unused
 
-    *page_size = utils_get_page_size();
+    *page_size = FIXED_PAGE_SIZE;
 
     return UMF_RESULT_SUCCESS;
 }
@@ -253,6 +254,66 @@ static umf_result_t fixed_free(void *provider, void *ptr, size_t size) {
     return coarse_free(fixed_provider->coarse, ptr, size);
 }
 
+typedef struct fixed_ipc_data_t {
+    // offset of the data (from the beginning of the devdax mapping) - see fixed_get_ipc_handle()
+    size_t offset;
+    size_t length; // length of the data
+} fixed_ipc_data_t;
+
+static umf_result_t fixed_get_ipc_handle_size(void *provider, size_t *size) {
+    (void)provider;
+
+    *size = sizeof(fixed_ipc_data_t);
+
+    return UMF_RESULT_SUCCESS;
+}
+
+static umf_result_t fixed_get_ipc_handle(void *provider, const void *ptr,
+                                         size_t size, void *providerIpcData) {
+    fixed_memory_provider_t *fixed_provider =
+        (fixed_memory_provider_t *)provider;
+
+    fixed_ipc_data_t *fixed_ipc_data = (fixed_ipc_data_t *)providerIpcData;
+    fixed_ipc_data->offset =
+        (size_t)((uintptr_t)ptr - (uintptr_t)fixed_provider->base);
+    fixed_ipc_data->length = size;
+
+    return UMF_RESULT_SUCCESS;
+}
+
+static umf_result_t fixed_put_ipc_handle(void *provider,
+                                         void *providerIpcData) {
+    (void)provider;        // unused
+    (void)providerIpcData; // unused
+    return UMF_RESULT_SUCCESS;
+}
+
+static umf_result_t fixed_open_ipc_handle(void *provider, void *providerIpcData,
+                                          void **ptr) {
+    (void)provider; // unused
+    *ptr = NULL;
+
+    fixed_ipc_data_t *fixed_ipc_data = (fixed_ipc_data_t *)providerIpcData;
+
+    size_t offset_aligned = fixed_ipc_data->offset;
+    size_t length_aligned = fixed_ipc_data->length;
+    utils_align_ptr_down_size_up((void **)&offset_aligned, &length_aligned,
+                                 FIXED_PAGE_SIZE);
+
+    return UMF_RESULT_ERROR_NOT_SUPPORTED;
+}
+
+static umf_result_t fixed_close_ipc_handle(void *provider, void *ptr,
+                                           size_t size) {
+    (void)provider; // unused
+    (void)ptr;      // unused
+    size = ALIGN_UP(size, FIXED_PAGE_SIZE);
+
+    errno = 0;
+
+    return UMF_RESULT_SUCCESS;
+}
+
 static umf_memory_provider_ops_t UMF_FIXED_MEMORY_PROVIDER_OPS = {
     .version = UMF_PROVIDER_OPS_VERSION_CURRENT,
     .initialize = fixed_initialize,
@@ -267,11 +328,11 @@ static umf_memory_provider_ops_t UMF_FIXED_MEMORY_PROVIDER_OPS = {
     .ext.purge_force = fixed_purge_force,
     .ext.allocation_merge = fixed_allocation_merge,
     .ext.allocation_split = fixed_allocation_split,
-    .ipc.get_ipc_handle_size = NULL,
-    .ipc.get_ipc_handle = NULL,
-    .ipc.put_ipc_handle = NULL,
-    .ipc.open_ipc_handle = NULL,
-    .ipc.close_ipc_handle = NULL};
+    .ipc.get_ipc_handle_size = fixed_get_ipc_handle_size,
+    .ipc.get_ipc_handle = fixed_get_ipc_handle,
+    .ipc.put_ipc_handle = fixed_put_ipc_handle,
+    .ipc.open_ipc_handle = fixed_open_ipc_handle,
+    .ipc.close_ipc_handle = fixed_close_ipc_handle};
 
 umf_memory_provider_ops_t *umfFixedMemoryProviderOps(void) {
     return &UMF_FIXED_MEMORY_PROVIDER_OPS;
