@@ -1,7 +1,7 @@
 {
    False-positive race in critnib_insert (lack of instrumentation)
    Helgrind:Race
-   fun:store
+   fun:utils_atomic_store_release_ptr
    fun:critnib_insert
    ...
 }

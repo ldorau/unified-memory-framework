@@ -8,6 +8,7 @@
  */
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #include "utils_concurrency.h"
@@ -69,4 +70,57 @@ int utils_read_unlock(utils_rwlock_t *rwlock) {
 
 int utils_write_unlock(utils_rwlock_t *rwlock) {
     return pthread_rwlock_unlock((pthread_rwlock_t *)rwlock);
+}
+
+void utils_atomic_load_acquire_u64(uint64_t *ptr, uint64_t *out) {
+    utils_annotate_acquire(ptr);
+    __atomic_load(ptr, out, memory_order_acquire);
+}
+
+void utils_atomic_load_acquire_ptr(void **ptr, void **out) {
+    utils_annotate_acquire((void *)ptr);
+    *out = (void *)__atomic_load_n((uintptr_t *)ptr, memory_order_acquire);
+}
+
+void utils_atomic_store_release_u64(uint64_t *ptr, uint64_t *val) {
+    __atomic_store(ptr, val, memory_order_release);
+    utils_annotate_release(ptr);
+}
+
+void utils_atomic_store_release_ptr(void **ptr, void *val) {
+    __atomic_store_n((uintptr_t *)ptr, (uintptr_t)val, memory_order_release);
+    utils_annotate_release(ptr);
+}
+
+uint64_t utils_atomic_increment_u64(uint64_t *val) {
+    // return incremented value
+    return __atomic_add_fetch(val, 1, memory_order_acq_rel);
+}
+
+uint64_t utils_atomic_decrement_u64(uint64_t *val) {
+    // return decremented value
+    return __atomic_sub_fetch(val, 1, memory_order_acq_rel);
+}
+
+uint64_t utils_fetch_and_add_u64(uint64_t *ptr, uint64_t val) {
+    // return the value that had previously been in *ptr
+    return __atomic_fetch_add(ptr, val, memory_order_acq_rel);
+}
+
+uint64_t utils_fetch_and_sub_u64(uint64_t *ptr, uint64_t val) {
+    // return the value that had previously been in *ptr
+    return __atomic_fetch_sub(ptr, val, memory_order_acq_rel);
+}
+
+bool utils_compare_exchange_u64(uint64_t *ptr, uint64_t *expected,
+                                uint64_t *desired) {
+    // if (*ptr == *expected)
+    //   *ptr = *desired
+    //   return true
+    // else
+    //  *expected = *ptr
+    // return false
+    return __atomic_compare_exchange(ptr, expected, desired, 0 /* strong */,
+                                     memory_order_acq_rel,
+                                     memory_order_relaxed);
 }

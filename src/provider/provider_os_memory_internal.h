@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2024 Intel Corporation
+ * Copyright (C) 2023-2025 Intel Corporation
  *
  * Under the Apache License v2.0 with LLVM Exceptions. See LICENSE.TXT.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -28,6 +28,9 @@ extern "C" {
 #endif
 
 typedef struct os_memory_provider_t {
+    ALIGNED_8 uint64_t
+        alloc_sum; // sum of all allocations - used for manual interleaving
+
     unsigned protection; // combination of OS-specific protection flags
     unsigned visibility; // memory visibility mode
 
@@ -58,7 +61,6 @@ typedef struct os_memory_provider_t {
     int numa_flags; // combination of hwloc flags
 
     size_t part_size;
-    size_t alloc_sum; // sum of all allocations - used for manual interleaving
 
     struct {
         unsigned weight;

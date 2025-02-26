@@ -7,6 +7,7 @@
  *
  */
 
+#include "utils_common.h"
 #include "utils_concurrency.h"
 
 size_t utils_mutex_get_size(void) { return sizeof(utils_mutex_t); }
@@ -64,6 +65,87 @@ int utils_read_unlock(utils_rwlock_t *rwlock) {
 int utils_write_unlock(utils_rwlock_t *rwlock) {
     ReleaseSRWLockExclusive(&rwlock->lock);
     return 0; // never fails
+}
+
+// There is no good way to do atomic_load on windows...
+void utils_atomic_load_acquire_u64(uint64_t *ptr, uint64_t *out) {
+    // NOTE: Windows cl complains about direct accessing 'ptr' which is next
+    // accessed using Interlocked* functions (warning 28112 - disabled)
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    utils_annotate_acquire(ptr);
+    LONG64 ret = InterlockedCompareExchange64((LONG64 volatile *)ptr, 0, 0);
+    *out = *(uint64_t *)&ret;
+}
+
+void utils_atomic_load_acquire_ptr(void **ptr, void **out) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    utils_annotate_acquire((void *)ptr);
+    uintptr_t ret = (uintptr_t)InterlockedCompareExchangePointer(ptr, 0, 0);
+    *(uintptr_t *)out = ret;
+}
+
+void utils_atomic_store_release_u64(uint64_t *ptr, uint64_t *val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    ASSERT_IS_ALIGNED((uintptr_t)val, 8);
+    InterlockedExchange64((LONG64 volatile *)ptr, *(LONG64 *)val);
+    utils_annotate_release(ptr);
+}
+
+void utils_atomic_store_release_ptr(void **ptr, void *val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    InterlockedExchangePointer(ptr, val);
+    utils_annotate_release(ptr);
+}
+
+uint64_t utils_atomic_increment_u64(uint64_t *ptr) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    // return incremented value
+    return InterlockedIncrement64((LONG64 volatile *)ptr);
+}
+
+uint64_t utils_atomic_decrement_u64(uint64_t *ptr) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    // return decremented value
+    return InterlockedDecrement64((LONG64 volatile *)ptr);
+}
+
+uint64_t utils_fetch_and_add_u64(uint64_t *ptr, uint64_t val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    ASSERT_IS_ALIGNED((uintptr_t)&val, 8);
+    // return the value that had previously been in *ptr
+    return InterlockedExchangeAdd64((LONG64 volatile *)(ptr), val);
+}
+
+uint64_t utils_fetch_and_sub_u64(uint64_t *ptr, uint64_t val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    ASSERT_IS_ALIGNED((uintptr_t)&val, 8);
+    // return the value that had previously been in *ptr
+    // NOTE: on Windows there is no *Sub* version of InterlockedExchange
+    return InterlockedExchangeAdd64((LONG64 volatile *)(ptr), -(LONG64)val);
+}
+
+bool utils_compare_exchange_u64(uint64_t *ptr, uint64_t *expected,
+                                uint64_t *desired) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    ASSERT_IS_ALIGNED((uintptr_t)desired, 8);
+    ASSERT_IS_ALIGNED((uintptr_t)expected, 8);
+
+    // if (*ptr == *desired)
+    //   *ptr = *expected
+    //   return true
+    // else
+    //  *expected = *ptr
+    // return false
+
+    LONG64 out = InterlockedCompareExchange64(
+        (LONG64 volatile *)ptr, *(LONG64 *)desired, *(LONG64 *)expected);
+    if (out == *(LONG64 *)expected) {
+        return true;
+    }
+
+    // else
+    *expected = out;
+    return false;
 }
 
 static BOOL CALLBACK initOnceCb(PINIT_ONCE InitOnce, PVOID Parameter,

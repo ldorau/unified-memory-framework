@@ -10,6 +10,8 @@
 #ifndef UMF_UTILS_CONCURRENCY_H
 #define UMF_UTILS_CONCURRENCY_H 1
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -35,6 +37,12 @@
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#ifdef _WIN32
+#define ALIGNED_8 __declspec(align(8))
+#else
+#define ALIGNED_8 __attribute__((aligned(8)))
 #endif
 
 typedef struct utils_mutex_t {
@@ -77,6 +85,20 @@ int utils_write_unlock(utils_rwlock_t *rwlock);
 
 void utils_init_once(UTIL_ONCE_FLAG *flag, void (*onceCb)(void));
 
+void utils_atomic_load_acquire_u64(uint64_t *ptr, uint64_t *out);
+void utils_atomic_load_acquire_ptr(void **ptr, void **out);
+
+void utils_atomic_store_release_u64(uint64_t *ptr, uint64_t *val);
+void utils_atomic_store_release_ptr(void **ptr, void *val);
+
+uint64_t utils_atomic_increment_u64(uint64_t *val);
+uint64_t utils_atomic_decrement_u64(uint64_t *val);
+
+uint64_t utils_fetch_and_add_u64(uint64_t *ptr, uint64_t value);
+uint64_t utils_fetch_and_sub_u64(uint64_t *ptr, uint64_t value);
+
+bool utils_compare_exchange_u64(uint64_t *ptr, uint64_t *expected,
+                                uint64_t *desired);
 #if defined(_WIN32)
 
 static __inline unsigned char utils_lssb_index(long long value) {
@@ -91,58 +113,10 @@ static __inline unsigned char utils_mssb_index(long long value) {
     return (unsigned char)ret;
 }
 
-// There is no good way to do atomic_load on windows...
-#define utils_atomic_load_acquire(object, dest)                                \
-    do {                                                                       \
-        *(LONG64 *)dest =                                                      \
-            InterlockedOr64Acquire((LONG64 volatile *)object, 0);              \
-    } while (0)
-
-#define utils_atomic_store_release(object, desired)                            \
-    InterlockedExchange64((LONG64 volatile *)object, (LONG64)desired)
-
-#define utils_atomic_increment(object)                                         \
-    InterlockedIncrement64((LONG64 volatile *)object)
-
-#define utils_atomic_decrement(object)                                         \
-    InterlockedDecrement64((LONG64 volatile *)object)
-
-#define utils_fetch_and_add64(ptr, value)                                      \
-    InterlockedExchangeAdd64((LONG64 *)(ptr), value)
-
-// NOTE: windows version have different order of args
-#define utils_compare_exchange(object, desired, expected)                      \
-    InterlockedCompareExchange64((LONG64 volatile *)object, *expected, *desired)
-
 #else // !defined(_WIN32)
 
 #define utils_lssb_index(x) ((unsigned char)__builtin_ctzll(x))
 #define utils_mssb_index(x) ((unsigned char)(63 - __builtin_clzll(x)))
-
-#define utils_atomic_load_acquire(object, dest)                                \
-    do {                                                                       \
-        utils_annotate_acquire((void *)object);                                \
-        __atomic_load(object, dest, memory_order_acquire);                     \
-    } while (0)
-
-#define utils_atomic_store_release(object, desired)                            \
-    do {                                                                       \
-        __atomic_store_n(object, desired, memory_order_release);               \
-        utils_annotate_release((void *)object);                                \
-    } while (0)
-
-#define utils_atomic_increment(object)                                         \
-    __atomic_add_fetch(object, 1, memory_order_acq_rel)
-
-#define utils_atomic_decrement(object)                                         \
-    __atomic_sub_fetch(object, 1, memory_order_acq_rel)
-
-#define utils_fetch_and_add64(object, value)                                   \
-    __atomic_fetch_add(object, value, memory_order_acq_rel)
-
-#define utils_compare_exchange(object, expected, desired)                      \
-    __atomic_compare_exchange(object, expected, desired, 0 /* strong */,       \
-                              memory_order_acq_rel, memory_order_relaxed)
 
 #endif // !defined(_WIN32)
 
