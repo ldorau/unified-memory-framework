@@ -47,7 +47,6 @@ jobs:
       name: "CUDA"
       shared_lib: "['ON']"
   Sanitizers:
-    needs: [FastBuild]
     uses: ./.github/workflows/reusable_sanitizers.yml
   QEMU:
     needs: [FastBuild]
@@ -58,7 +57,6 @@ jobs:
     needs: [Build]
     uses: ./.github/workflows/reusable_proxy_lib.yml
   Valgrind:
-    needs: [Build]
     uses: ./.github/workflows/reusable_valgrind.yml
   Coverage:
     # total coverage (on upstream only)

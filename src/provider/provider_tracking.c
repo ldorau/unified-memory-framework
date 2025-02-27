@@ -542,14 +542,14 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
         provider->hTracker->alloc_segments_map[highLevel], (uintptr_t)highPtr);
     assert(erasedhighValue == highValue);
 
-    umf_ba_free(provider->hTracker->alloc_info_allocator, erasedhighValue);
-
-    utils_mutex_unlock(&provider->hTracker->splitMergeMutex);
-
     LOG_DEBUG(
         "merged the memory regions (level %i): lowPtr = %p (%zu ch), highPtr = "
         "%p (%zu ch), totalSize = %zu, children = %zu",
         lowLevel, lowPtr, lno, highPtr, hno, totalSize, mno);
+
+    umf_ba_free(provider->hTracker->alloc_info_allocator, erasedhighValue);
+
+    utils_mutex_unlock(&provider->hTracker->splitMergeMutex);
 
     return UMF_RESULT_SUCCESS;
 
