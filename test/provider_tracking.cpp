@@ -335,3 +335,51 @@ TEST_P(TrackingProviderTest, reverted_free_half_size) {
     umf_result = umfPoolFree(pool0, ptr0);
     ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
 }
+
+TEST_P(TrackingProviderTest, reverted_free_the_same_size) {
+    umf_result_t umf_result;
+    size_t size0;
+    size_t size1;
+    void *ptr0 = nullptr;
+    void *ptr1 = nullptr;
+
+    umf_memory_pool_handle_t pool0 = pool.get();
+
+    size0 = FIXED_BUFFER_SIZE - (2 * page_size);
+    ptr0 = umfPoolAlignedMalloc(pool0, size0, utils_get_page_size());
+    ASSERT_NE(ptr0, nullptr);
+
+    fprintf(stderr, ">>> ptr0 = %p\n", ptr0);
+
+    umf_memory_provider_handle_t provider1 = nullptr;
+    umf_memory_pool_handle_t pool1 = nullptr;
+    createPoolFromAllocation(ptr0, size0, &provider1, &pool1);
+
+    size1 = size0; // the same size
+
+    ptr1 = umfPoolMalloc(pool1, size1);
+    ASSERT_NE(ptr1, nullptr);
+
+    fprintf(stderr, ">>> ptr1 = %p (the same = %i)\n", ptr1, ptr1 == ptr0);
+
+    // try to free the pointer from the first pool
+    fprintf(stderr,
+            ">>> try to free the pointer from the first pool: ptr0 = %p pool0 "
+            "= %p\n",
+            ptr0, pool0);
+    umf_result = umfPoolFree(pool0, ptr0);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+
+    fprintf(stderr,
+            ">>> try to free the pointer from the second pool: ptr1 = %p pool1 "
+            "= %p\n",
+            ptr1, pool1);
+    umf_result = umfPoolFree(pool1, ptr1);
+    ASSERT_EQ(umf_result, UMF_RESULT_SUCCESS);
+
+    umfPoolDestroy(pool1);
+    umfMemoryProviderDestroy(provider1);
+
+    umf_result = umfPoolFree(pool0, ptr0);
+    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+}
