@@ -171,11 +171,6 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
     int level = 0;
     int found = 0;
 
-    int ret = utils_mutex_lock(&hTracker->mutex);
-    if (ret) {
-        return UMF_RESULT_ERROR_UNKNOWN;
-    }
-
     // Find the most nested (in the highest level) entry
     // in the critnib maps that contains the given 'ptr' pointer.
     do {
@@ -217,7 +212,6 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
     umf_result = UMF_RESULT_SUCCESS;
 
 err_unlock:
-    utils_mutex_unlock(&hTracker->mutex);
 
     return umf_result;
 }
@@ -235,11 +229,6 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
     tracker_alloc_info_t *parent_value = NULL;
     uintptr_t parent_key = 0;
     int level = 0;
-
-    int ret = utils_mutex_lock(&hTracker->mutex);
-    if (ret) {
-        return UMF_RESULT_ERROR_UNKNOWN;
-    }
 
     // Find the most nested (on the highest level) entry in the map
     // with the `ptr` key and with no children - only such entry can be removed.
@@ -272,7 +261,6 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
     umf_result = UMF_RESULT_SUCCESS;
 
 err_unlock:
-    utils_mutex_unlock(&hTracker->mutex);
 
     return umf_result;
 }
