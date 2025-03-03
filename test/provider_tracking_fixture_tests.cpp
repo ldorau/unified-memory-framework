@@ -78,11 +78,16 @@ static void *providerFromPoolParamsCreate(void) {
 
 // TESTS
 
-INSTANTIATE_TEST_SUITE_P(TrackingProviderPoolTest, umfPoolTest,
-                         ::testing::Values(poolCreateExtParams{
-                             umfProxyPoolOps(), nullptr, nullptr,
-                             &PROVIDER_FROM_POOL_OPS,
-                             providerFromPoolParamsCreate, nullptr}));
+INSTANTIATE_TEST_SUITE_P(
+    TrackingProviderPoolTest, umfPoolTest,
+    ::testing::Values(poolCreateExtParams{umfProxyPoolOps(), nullptr, nullptr,
+                                          &PROVIDER_FROM_POOL_OPS,
+                                          providerFromPoolParamsCreate,
+                                          nullptr},
+                      poolCreateExtParams{umfJemallocPoolOps(), nullptr,
+                                          nullptr, &PROVIDER_FROM_POOL_OPS,
+                                          providerFromPoolParamsCreate,
+                                          nullptr}));
 
 INSTANTIATE_TEST_SUITE_P(TrackingProviderMultiPoolTest, umfMultiPoolTest,
                          ::testing::Values(poolCreateExtParams{
