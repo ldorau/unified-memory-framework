@@ -86,6 +86,15 @@ int utils_write_unlock(utils_rwlock_t *rwlock);
 
 void utils_init_once(UTIL_ONCE_FLAG *flag, void (*onceCb)(void));
 
+#define utils_atomic_store_u64(ptr, val)                                       \
+    do {                                                                       \
+        uint64_t expected = 0;                                                 \
+        uint64_t desired = val;                                                \
+        while (                                                                \
+            !utils_compare_exchange_u64((uint64_t *)ptr, &expected, &desired)) \
+            ;                                                                  \
+    } while (0)
+
 #if defined(_WIN32)
 
 static __inline unsigned char utils_lssb_index(long long value) {
@@ -165,6 +174,11 @@ static __inline bool utils_compare_exchange_u64(uint64_t *ptr,
     return false;
 }
 
+static inline void utils_atomic_store_release_u64(void *ptr, uint64_t val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    utils_atomic_store_u64(ptr, val);
+}
+
 #else // !defined(_WIN32)
 
 #define utils_lssb_index(x) ((unsigned char)__builtin_ctzll(x))
@@ -180,6 +194,11 @@ static inline void utils_atomic_load_acquire_ptr(void **ptr, void **out) {
     ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
     ASSERT_IS_ALIGNED((uintptr_t)out, 8);
     __atomic_load((uintptr_t *)ptr, (uintptr_t *)out, memory_order_acquire);
+}
+
+static inline void utils_atomic_store_release_u64(void *ptr, uint64_t val) {
+    ASSERT_IS_ALIGNED((uintptr_t)ptr, 8);
+    __atomic_store_n((uintptr_t *)ptr, (uintptr_t)val, memory_order_release);
 }
 
 static inline void utils_atomic_store_release_ptr(void **ptr, void *val) {
