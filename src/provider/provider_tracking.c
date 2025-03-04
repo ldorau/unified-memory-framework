@@ -126,7 +126,7 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
     }
 
     value->pool = pool;
-    value->size = size;
+    utils_atomic_store_release_u64(&value->size, size);
     value->n_children = 0;
 
     assert(level < MAX_LEVELS_OF_ALLOC_SEGMENT_MAP);
@@ -176,6 +176,7 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
     tracker_alloc_info_t *rvalue = NULL;
     uintptr_t parent_key = 0;
     uintptr_t rkey = 0;
+    uint64_t rsize = 0;
     int level = 0;
     int found = 0;
     int ret;
@@ -194,7 +195,12 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
         found =
             critnib_find(hTracker->alloc_segments_map[level], (uintptr_t)ptr,
                          FIND_LE, (void *)&rkey, (void **)&rvalue);
-        if (found && (uintptr_t)ptr < rkey + rvalue->size) {
+        if (!found) {
+            continue;
+        }
+
+        utils_atomic_load_acquire_u64(&rvalue->size, &rsize);
+        if ((uintptr_t)ptr < rkey + rsize) {
             if (level == MAX_LEVELS_OF_ALLOC_SEGMENT_MAP - 1) {
                 // TODO: we need to support an arbitrary amount of layers in the future
                 LOG_ERR("tracker level is too high, ptr=%p, size=%zu", ptr,
@@ -216,8 +222,7 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
             parent_value = rvalue;
             level++;
         }
-    } while (found && ((uintptr_t)ptr < rkey + rvalue->size) &&
-             rvalue->n_children);
+    } while (found && ((uintptr_t)ptr < rkey + rsize) && rvalue->n_children);
 
     umf_result = umfMemoryTrackerAddAtLevel(hTracker, level, pool, ptr, size,
                                             parent_key, parent_value);
