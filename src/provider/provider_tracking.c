@@ -134,7 +134,7 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
                              (uintptr_t)ptr, value, 0);
     if (ret == 0) {
         if (level > 0) {
-            utils_fetch_and_add64(&hTracker->n_at_higher_levels, 1);
+            utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 1);
         }
 
         LOG_DEBUG("memory region is added, tracker=%p, level=%i, pool=%p, "
@@ -241,7 +241,7 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
 
     return umfMemoryTrackerAddLock(
         hTracker, pool, ptr, size,
-        (utils_fetch_and_add64(&hTracker->n_at_higher_levels, 0) > 0));
+        (utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 0) > 0));
 }
 
 static umf_result_t
@@ -281,7 +281,7 @@ umfMemoryTrackerRemoveLock(umf_memory_tracker_handle_t hTracker,
     assert(value);
 
     if (level > 0) {
-        utils_fetch_and_add64(&hTracker->n_at_higher_levels, -1);
+        utils_fetch_and_sub_u64(&hTracker->n_at_higher_levels, 1);
     }
 
     LOG_DEBUG("memory region removed: tracker=%p, level=%i, pool=%p, ptr=%p, "
@@ -313,7 +313,7 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
                                            const void *ptr) {
     return umfMemoryTrackerRemoveLock(
         hTracker, ptr,
-        (utils_fetch_and_add64(&hTracker->n_at_higher_levels, 0) > 0));
+        (utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 0) > 0));
 }
 
 umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr) {
