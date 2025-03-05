@@ -88,6 +88,7 @@ static tracker_alloc_info_t *get_most_nested_alloc_segment(
         }
 
         utils_atomic_load_acquire_u64((uint64_t *)&rvalue->size, &rsize);
+        assert(rsize != 0x11223344);
 
         if (found && (uintptr_t)ptr < rkey + rsize) {
             if (rvalue->n_children) {
@@ -215,6 +216,7 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
         }
 
         utils_atomic_load_acquire_u64((uint64_t *)&rvalue->size, &rsize);
+        assert(rsize != 0x11223344);
 
         if ((uintptr_t)ptr < rkey + rsize) {
             if (level == MAX_LEVELS_OF_ALLOC_SEGMENT_MAP - 1) {

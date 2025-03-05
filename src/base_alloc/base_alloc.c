@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Intel Corporation
+ * Copyright (C) 2024-2025 Intel Corporation
  *
  * Under the Apache License v2.0 with LLVM Exceptions. See LICENSE.TXT.
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -238,6 +238,18 @@ void *umf_ba_alloc(umf_ba_pool_t *pool) {
 #ifndef NDEBUG
     ba_debug_checks(pool);
 #endif /* NDEBUG */
+
+    // poison
+    struct tracker_alloc_info_s {
+        void *pool;
+        size_t size;
+        size_t n_children;
+    };
+
+    if (pool->metadata.chunk_size >= sizeof(struct tracker_alloc_info_s)) {
+        struct tracker_alloc_info_s *ptr = (struct tracker_alloc_info_s *)chunk;
+        ptr->size = 0x11223344;
+    }
 
     VALGRIND_DO_MALLOCLIKE_BLOCK(chunk, pool->metadata.chunk_size, 0, 0);
     utils_annotate_memory_undefined(chunk, pool->metadata.chunk_size);
