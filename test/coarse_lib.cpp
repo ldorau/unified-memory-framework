@@ -772,7 +772,7 @@ TEST_P(CoarseWithMemoryStrategyTest, coarseTest_merge_cb_fails) {
     ASSERT_EQ(coarse_get_stats(ch).num_all_blocks, 3);
 
     umf_result = coarse_free(ch, ptr, 3 * MB);
-    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_ARGUMENT);
+    ASSERT_EQ(umf_result, UMF_RESULT_ERROR_INVALID_SIZE);
     ASSERT_EQ(coarse_get_stats(ch).used_size, 3 * MB);
     ASSERT_EQ(coarse_get_stats(ch).alloc_size, buff_size);
     ASSERT_EQ(coarse_get_stats(ch).num_all_blocks, 3);

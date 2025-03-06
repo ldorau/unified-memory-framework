@@ -48,6 +48,7 @@ typedef enum umf_result_t {
     UMF_RESULT_ERROR_DEPENDENCY_UNAVAILABLE =
         7, ///< External required dependency is unavailable or missing
     UMF_RESULT_ERROR_OUT_OF_RESOURCES = 8, ///< Out of internal resources
+    UMF_RESULT_ERROR_INVALID_SIZE = 9,     ///< Invalid size of an allocation
     UMF_RESULT_ERROR_UNKNOWN = 0x7ffffffe  ///< Unknown error
 } umf_result_t;
 

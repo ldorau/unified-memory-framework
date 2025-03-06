@@ -1179,7 +1179,7 @@ umf_result_t coarse_free(coarse_t *coarse, void *ptr, size_t bytes) {
     if (bytes > 0 && bytes != block->size) {
         LOG_ERR("wrong size of allocation");
         utils_mutex_unlock(&coarse->lock);
-        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+        return UMF_RESULT_ERROR_INVALID_SIZE;
     }
 
     LOG_DEBUG("coarse_FREE (return_block_to_pool) %zu used %zu alloc %zu",
