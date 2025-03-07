@@ -38,8 +38,6 @@ struct umf_memory_tracker_t {
     // for another memory pool (nested memory pooling).
     critnib *alloc_segments_map[MAX_LEVELS_OF_ALLOC_SEGMENT_MAP];
     utils_mutex_t mutex;
-    // number of memory regions at levels > 0
-    uint64_t n_at_higher_levels;
 };
 
 typedef struct tracker_alloc_info_t {
@@ -139,10 +137,6 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
     int ret = critnib_insert(hTracker->alloc_segments_map[level],
                              (uintptr_t)ptr, value, 0);
     if (ret == 0) {
-        if (level > 0) {
-            utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 1);
-        }
-
         LOG_DEBUG("memory region is added, tracker=%p, level=%i, pool=%p, "
                   "ptr=%p, size=%zu",
                   (void *)hTracker, level, (void *)pool, ptr, size);
@@ -171,10 +165,9 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
     return umf_result;
 }
 
-static umf_result_t
-umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
-                        umf_memory_pool_handle_t pool, const void *ptr,
-                        size_t size, int lock) {
+static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
+                                        umf_memory_pool_handle_t pool,
+                                        const void *ptr, size_t size) {
     assert(ptr);
 
     umf_result_t umf_result = UMF_RESULT_ERROR_UNKNOWN;
@@ -185,13 +178,10 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
     uint64_t rsize = 0;
     int level = 0;
     int found = 0;
-    int ret;
 
-    if (lock) {
-        ret = utils_mutex_lock(&hTracker->mutex);
-        if (ret) {
-            return UMF_RESULT_ERROR_UNKNOWN;
-        }
+    int ret = utils_mutex_lock(&hTracker->mutex);
+    if (ret) {
+        return UMF_RESULT_ERROR_UNKNOWN;
     }
 
     // Find the most nested (in the highest level) entry
@@ -240,25 +230,13 @@ umfMemoryTrackerAddLock(umf_memory_tracker_handle_t hTracker,
     umf_result = UMF_RESULT_SUCCESS;
 
 err_unlock:
-    if (lock) {
-        utils_mutex_unlock(&hTracker->mutex);
-    }
+    utils_mutex_unlock(&hTracker->mutex);
 
     return umf_result;
 }
 
-static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
-                                        umf_memory_pool_handle_t pool,
-                                        const void *ptr, size_t size) {
-
-    return umfMemoryTrackerAddLock(
-        hTracker, pool, ptr, size,
-        (utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 0) > 0));
-}
-
-static umf_result_t
-umfMemoryTrackerRemoveLock(umf_memory_tracker_handle_t hTracker,
-                           const void *ptr, int lock) {
+static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
+                                           const void *ptr) {
     assert(ptr);
 
     // TODO: there is no support for removing partial ranges (or multiple entries
@@ -270,13 +248,10 @@ umfMemoryTrackerRemoveLock(umf_memory_tracker_handle_t hTracker,
     tracker_alloc_info_t *parent_value = NULL;
     uintptr_t parent_key = 0;
     int level = 0;
-    int ret;
 
-    if (lock) {
-        ret = utils_mutex_lock(&hTracker->mutex);
-        if (ret) {
-            return UMF_RESULT_ERROR_UNKNOWN;
-        }
+    int ret = utils_mutex_lock(&hTracker->mutex);
+    if (ret) {
+        return UMF_RESULT_ERROR_UNKNOWN;
     }
 
     // Find the most nested (on the highest level) entry in the map
@@ -291,10 +266,6 @@ umfMemoryTrackerRemoveLock(umf_memory_tracker_handle_t hTracker,
     assert(level < MAX_LEVELS_OF_ALLOC_SEGMENT_MAP);
     value = critnib_remove(hTracker->alloc_segments_map[level], (uintptr_t)ptr);
     assert(value);
-
-    if (level > 0) {
-        utils_fetch_and_sub_u64(&hTracker->n_at_higher_levels, 1);
-    }
 
     LOG_DEBUG("memory region removed: tracker=%p, level=%i, pool=%p, ptr=%p, "
               "size=%zu",
@@ -314,18 +285,9 @@ umfMemoryTrackerRemoveLock(umf_memory_tracker_handle_t hTracker,
     umf_result = UMF_RESULT_SUCCESS;
 
 err_unlock:
-    if (lock) {
-        utils_mutex_unlock(&hTracker->mutex);
-    }
+    utils_mutex_unlock(&hTracker->mutex);
 
     return umf_result;
-}
-
-static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
-                                           const void *ptr) {
-    return umfMemoryTrackerRemoveLock(
-        hTracker, ptr,
-        (utils_fetch_and_add_u64(&hTracker->n_at_higher_levels, 0) > 0));
 }
 
 umf_memory_pool_handle_t umfMemoryTrackerGetPool(const void *ptr) {
@@ -1137,7 +1099,6 @@ umf_memory_tracker_handle_t umfMemoryTrackerCreate(void) {
     }
 
     handle->alloc_info_allocator = alloc_info_allocator;
-    handle->n_at_higher_levels = 0;
 
     void *mutex_ptr = utils_mutex_init(&handle->mutex);
     if (!mutex_ptr) {
