@@ -709,6 +709,9 @@ static struct critnib_leaf *find_ge(struct critnib_node *__restrict n,
  */
 int critnib_find(struct critnib *c, uintptr_t key, enum find_dir_t dir,
                  uintptr_t *rkey, void **rvalue) {
+
+    LOG_DEBUG("critnib_find(ptr=%p)", (void *)key);
+
     uint64_t wrs1, wrs2;
     struct critnib_leaf *k;
     uintptr_t _rkey = (uintptr_t)0x0;
