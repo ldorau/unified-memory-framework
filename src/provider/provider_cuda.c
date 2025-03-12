@@ -406,16 +406,20 @@ static inline umf_result_t set_context(CUcontext required_ctx,
     CUcontext current_ctx = NULL;
     CUresult cu_result = g_cu_ops.cuCtxGetCurrent(&current_ctx);
     if (cu_result != CUDA_SUCCESS) {
-        LOG_ERR("cuCtxGetCurrent() failed.");
+        LOG_ERR("cuCtxGetCurrent() failed (cu_result = %i)", cu_result);
         return cu2umf_result(cu_result);
     }
+    LOG_DEBUG("cuCtxGetCurrent() returned context %p", (void *)current_ctx);
     *restore_ctx = current_ctx;
     if (current_ctx != required_ctx) {
         cu_result = g_cu_ops.cuCtxSetCurrent(required_ctx);
         if (cu_result != CUDA_SUCCESS) {
-            LOG_ERR("cuCtxSetCurrent() failed.");
+            LOG_ERR("cuCtxSetCurrent() failed (cu_result = %i)", cu_result);
             return cu2umf_result(cu_result);
         }
+        LOG_DEBUG("cuCtxSetCurrent() set context %p", (void *)required_ctx);
+    } else {
+        LOG_DEBUG("current_ctx == required_ctx");
     }
 
     return UMF_RESULT_SUCCESS;
