@@ -59,8 +59,8 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
 
     if (ret == 0) {
         LOG_DEBUG(
-            "memory region is added, tracker=%p, ptr=%p, pool=%p, size=%zu",
-            (void *)hTracker, ptr, (void *)pool, size);
+            "memory region is added, tracker=%p, pool=%p, ptr=%p, size=%zu",
+            (void *)hTracker, (void *)pool, ptr, size);
         return UMF_RESULT_SUCCESS;
     }
 

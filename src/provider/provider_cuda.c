@@ -430,6 +430,8 @@ static umf_result_t cu_memory_provider_alloc(void *provider, size_t size,
                                              void **resultPtr) {
     cu_memory_provider_t *cu_provider = (cu_memory_provider_t *)provider;
 
+    LOG_DEBUG("cu_memory_provider_alloc(%zu, %zu)", size, alignment);
+
     if (alignment > cu_provider->min_alignment) {
         // alignment of CUDA allocations is controlled by the CUDA driver -
         // currently UMF doesn't support alignment larger than default
@@ -449,15 +451,21 @@ static umf_result_t cu_memory_provider_alloc(void *provider, size_t size,
     case UMF_MEMORY_TYPE_HOST: {
         cu_result =
             g_cu_ops.cuMemHostAlloc(resultPtr, size, cu_provider->alloc_flags);
+        LOG_DEBUG("cuMemHostAlloc(%p, %zu, %u) returned %i", *resultPtr, size,
+                  cu_provider->alloc_flags, cu_result);
         break;
     }
     case UMF_MEMORY_TYPE_DEVICE: {
         cu_result = g_cu_ops.cuMemAlloc((CUdeviceptr *)resultPtr, size);
+        LOG_DEBUG("cuMemAlloc(%p, %zu) returned %i", *resultPtr, size,
+                  cu_result);
         break;
     }
     case UMF_MEMORY_TYPE_SHARED: {
         cu_result = g_cu_ops.cuMemAllocManaged((CUdeviceptr *)resultPtr, size,
                                                cu_provider->alloc_flags);
+        LOG_DEBUG("cuMemAllocManaged(%p, %zu, %u) returned %i", *resultPtr,
+                  size, cu_provider->alloc_flags, cu_result);
         break;
     }
     default:
@@ -497,6 +505,8 @@ static umf_result_t cu_memory_provider_free(void *provider, void *ptr,
         return UMF_RESULT_SUCCESS;
     }
 
+    LOG_DEBUG("cu_memory_provider_free(%p, %zu)", ptr, bytes);
+
     cu_memory_provider_t *cu_provider = (cu_memory_provider_t *)provider;
 
     // Remember current context and set the one from the provider
@@ -509,15 +519,15 @@ static umf_result_t cu_memory_provider_free(void *provider, void *ptr,
 
     CUresult cu_result = CUDA_SUCCESS;
     switch (cu_provider->memory_type) {
-    case UMF_MEMORY_TYPE_HOST: {
+    case UMF_MEMORY_TYPE_HOST:
+        LOG_DEBUG("cuMemFreeHost(%p)", ptr);
         cu_result = g_cu_ops.cuMemFreeHost(ptr);
         break;
-    }
     case UMF_MEMORY_TYPE_SHARED:
-    case UMF_MEMORY_TYPE_DEVICE: {
+    case UMF_MEMORY_TYPE_DEVICE:
+        LOG_DEBUG("cuMemFree(%p)", ptr);
         cu_result = g_cu_ops.cuMemFree((CUdeviceptr)ptr);
         break;
-    }
     default:
         // this shouldn't happen as we check the memory_type settings during
         // the initialization
