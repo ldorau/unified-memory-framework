@@ -560,15 +560,27 @@ static void cu_memory_provider_get_last_native_error(void *provider,
                               &error_string);
 
     size_t buf_size = 0;
-    strncpy(TLS_last_native_error.msg_buff, error_name, TLS_MSG_BUF_LEN - 1);
+    if (error_name) {
+        strncpy(TLS_last_native_error.msg_buff, error_name,
+                TLS_MSG_BUF_LEN - 1);
+    } else {
+        strncpy(TLS_last_native_error.msg_buff, "cuGetErrorName() failed",
+                TLS_MSG_BUF_LEN - 1);
+    }
+
     buf_size = strlen(TLS_last_native_error.msg_buff);
 
     strncat(TLS_last_native_error.msg_buff, " - ",
             TLS_MSG_BUF_LEN - buf_size - 1);
     buf_size = strlen(TLS_last_native_error.msg_buff);
 
-    strncat(TLS_last_native_error.msg_buff, error_string,
-            TLS_MSG_BUF_LEN - buf_size - 1);
+    if (error_string) {
+        strncat(TLS_last_native_error.msg_buff, error_string,
+                TLS_MSG_BUF_LEN - buf_size - 1);
+    } else {
+        strncat(TLS_last_native_error.msg_buff, "cuGetErrorString() failed",
+                TLS_MSG_BUF_LEN - buf_size - 1);
+    }
 
     *pError = TLS_last_native_error.native_error;
     *ppMessage = TLS_last_native_error.msg_buff;
