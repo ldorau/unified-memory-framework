@@ -159,7 +159,7 @@ else()
     endif()
 
     if(NOT DEFINED UMF_JEMALLOC_TAG)
-        set(UMF_JEMALLOC_TAG 5.3.0)
+        set(UMF_JEMALLOC_TAG 81f35e0b55c52cb0c3e1171afd477e1cb66fafaf)
     endif()
 
     include(FetchContent)
