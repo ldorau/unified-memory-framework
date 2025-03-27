@@ -41,8 +41,9 @@ jobs:
     - name: Run tests with 'memcheck'
       run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build memcheck
 
-    - name: Run tests with 'drd'
-      run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build drdshort
-
-    - name: Run tests with 'helgrind'
-      run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build helgrind
+    - name: Run tests with 'drd' and 'helgrind'
+      run: >
+        while date; do
+          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build drd || break
+          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build helgrind || break
+        done
