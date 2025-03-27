@@ -90,7 +90,7 @@
 #define SLNODES (1 << SLICE)
 
 typedef uintptr_t word;
-typedef unsigned char sh_t;
+typedef uintptr_t sh_t;
 
 struct critnib_node {
     /*
@@ -246,8 +246,10 @@ static void free_node(struct critnib *__restrict c,
     }
 
     ASSERT(!is_leaf(n));
-    n->child[0] = c->deleted_node;
-    c->deleted_node = n;
+    // n->child[0] = c->deleted_node;
+    utils_atomic_store_release_ptr((void **)&n->child[0], c->deleted_node);
+    // c->deleted_node = n;
+    utils_atomic_store_release_ptr((void **)&c->deleted_node, n);
 }
 
 /*
@@ -277,8 +279,10 @@ static void free_leaf(struct critnib *__restrict c,
         return;
     }
 
-    k->value = c->deleted_leaf;
-    c->deleted_leaf = k;
+    // k->value = c->deleted_leaf;
+    utils_atomic_store_release_ptr((void **)&k->value, c->deleted_leaf);
+    // c->deleted_leaf = k;
+    utils_atomic_store_release_ptr((void **)&c->deleted_leaf, k);
 }
 
 /*
@@ -319,8 +323,10 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     utils_annotate_memory_no_check(k, sizeof(struct critnib_leaf));
 
-    k->key = key;
-    k->value = value;
+    // k->key = key;
+    utils_atomic_store_release_ptr((void **)&k->key, (void *)key);
+    // k->value = value;
+    utils_atomic_store_release_ptr((void **)&k->value, value);
 
     struct critnib_node *kn = (void *)((word)k | 1);
 
@@ -381,13 +387,19 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     utils_annotate_memory_no_check(m, sizeof(struct critnib_node));
 
     for (int i = 0; i < SLNODES; i++) {
-        m->child[i] = NULL;
+        // m->child[i] = NULL;
+        utils_atomic_store_release_ptr((void *)&m->child[i], NULL);
     }
 
-    m->child[slice_index(key, sh)] = kn;
-    m->child[slice_index(path, sh)] = n;
-    m->shift = sh;
-    m->path = key & path_mask(sh);
+    // m->child[slice_index(key, sh)] = kn;
+    utils_atomic_store_release_ptr((void *)&m->child[slice_index(key, sh)], kn);
+    // m->child[slice_index(path, sh)] = n;
+    utils_atomic_store_release_ptr((void *)&m->child[slice_index(path, sh)], n);
+    // m->shift = sh;
+    utils_atomic_store_release_u64((void *)&m->shift, sh);
+    // m->path = key & path_mask(sh);
+    utils_atomic_store_release_u64((void *)&m->path, key & path_mask(sh));
+
     utils_atomic_store_release_ptr((void **)parent, m);
 
     utils_mutex_unlock(&c->mutex);
@@ -569,12 +581,16 @@ static struct critnib_leaf *find_le(struct critnib_node *__restrict n,
 	 * that shift points at the nib's lower rather than upper edge, so it
 	 * needs to be masked away as well.
 	 */
-    if ((key ^ n->path) >> (n->shift) & ~NIB) {
+    word path;
+    sh_t shift;
+    utils_atomic_load_acquire_u64(&n->path, &path);
+    utils_atomic_load_acquire_u64(&n->shift, &shift);
+    if ((key ^ path) >> (shift) & ~NIB) {
         /*
 		 * subtree is too far to the left?
 		 * -> its rightmost value is good
 		 */
-        if (n->path < key) {
+        if (path < key) {
             return find_predecessor(n);
         }
 
@@ -585,7 +601,7 @@ static struct critnib_leaf *find_le(struct critnib_node *__restrict n,
         return NULL;
     }
 
-    unsigned nib = slice_index(key, n->shift);
+    unsigned nib = slice_index(key, shift);
     /* recursive call: follow the path */
     {
         struct critnib_node *m;
@@ -759,8 +775,10 @@ int critnib_find(struct critnib *c, uintptr_t key, enum find_dir_t dir,
             k = (n && kk->key == key) ? kk : NULL;
         }
         if (k) {
-            _rkey = k->key;
-            _rvalue = k->value;
+            // _rkey = k->key;
+            utils_atomic_load_acquire_u64(&k->key, &_rkey);
+            // _rvalue = k->value;
+            utils_atomic_load_acquire_ptr(&k->value, (void **)&_rvalue);
         }
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs2);
     } while (wrs1 + DELETED_LIFE <= wrs2);
