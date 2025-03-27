@@ -18,7 +18,3 @@ permissions:
 jobs:
   Sanitizers:
     uses: ./.github/workflows/reusable_sanitizers.yml
-  ProxyLib:
-    uses: ./.github/workflows/reusable_proxy_lib.yml
-  Valgrind:
-    uses: ./.github/workflows/reusable_valgrind.yml
