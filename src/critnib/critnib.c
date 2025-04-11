@@ -262,6 +262,7 @@ static struct critnib_node *alloc_node(struct critnib *__restrict c) {
 
     c->deleted_node = n->child[0];
     utils_annotate_memory_new(n, sizeof(*n));
+    utils_annotate_memory_undefined(n, sizeof(*n));
 
     return n;
 }
@@ -293,6 +294,7 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
 
     c->deleted_leaf = k->value;
     utils_annotate_memory_new(k, sizeof(*k));
+    utils_annotate_memory_undefined(k, sizeof(*k));
 
     return k;
 }
