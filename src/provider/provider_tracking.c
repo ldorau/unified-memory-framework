@@ -187,6 +187,7 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
     uint64_t rsize = 0;
     int level = 0;
     int found = 0;
+    size_t n_children;
 
     // Find the most nested (in the highest level) entry
     // in the critnib maps that contains the given 'ptr' pointer.
@@ -199,7 +200,11 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
             break;
         }
 
+        utils_atomic_load_acquire_u64((uint64_t *)&rvalue->n_children, &n_children);
+        assert(n_children != 123456789 && "n_children != 123456789");
+
         utils_atomic_load_acquire_u64((uint64_t *)&rvalue->size, &rsize);
+
 
         if ((uintptr_t)ptr < rkey + rsize) {
             if (level == MAX_LEVELS_OF_ALLOC_SEGMENT_MAP - 1) {
@@ -257,6 +262,8 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
     assert(level < MAX_LEVELS_OF_ALLOC_SEGMENT_MAP);
     value = critnib_remove(hTracker->alloc_segments_map[level], (uintptr_t)ptr);
     assert(value);
+
+    value->n_children = 123456789;
 
     LOG_DEBUG("memory region removed: tracker=%p, level=%i, pool=%p, ptr=%p, "
               "size=%zu",
