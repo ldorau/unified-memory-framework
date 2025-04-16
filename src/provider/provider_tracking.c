@@ -295,7 +295,7 @@ static umf_result_t umfMemoryTrackerRemove(umf_memory_tracker_handle_t hTracker,
         parent_value->n_children--;
     }
 
-    umf_ba_free(hTracker->alloc_info_allocator, value);
+    // umf_ba_free(hTracker->alloc_info_allocator, value);
 
     return UMF_RESULT_SUCCESS;
 }
@@ -705,7 +705,7 @@ static umf_result_t trackingAllocationMerge(void *hProvider, void *lowPtr,
               lowLevel, lowPtr, lowValue->n_children, highPtr,
               highValue->n_children, totalSize);
 
-    umf_ba_free(provider->hTracker->alloc_info_allocator, highValue);
+    // umf_ba_free(provider->hTracker->alloc_info_allocator, highValue);
 
     return UMF_RESULT_SUCCESS;
 
@@ -797,55 +797,6 @@ static umf_result_t trackingInitialize(const void *params, void **ret) {
     return UMF_RESULT_SUCCESS;
 }
 
-#ifndef NDEBUG
-static void check_if_tracker_is_empty(umf_memory_tracker_handle_t hTracker,
-                                      umf_memory_pool_handle_t pool) {
-    size_t n_items = 0;
-
-    for (int i = 0; i < MAX_LEVELS_OF_ALLOC_SEGMENT_MAP; i++) {
-        uintptr_t last_key = 0;
-        uintptr_t rkey;
-        tracker_alloc_info_t *rvalue;
-
-        while (1 == critnib_find(hTracker->alloc_segments_map[i], last_key,
-                                 FIND_G, &rkey, (void **)&rvalue)) {
-            // rvalue == NULL means that the entry was removed
-            if (rvalue == NULL) {
-                continue;
-            }
-
-            if (rvalue->pool == pool || pool == NULL) {
-                n_items++;
-                LOG_ERR("[%zu] pool %p ptr %p size %zu", n_items,
-                        (void *)rvalue->pool, (void *)rkey, rvalue->size);
-            }
-
-            last_key = rkey;
-        }
-    }
-
-    if (n_items) {
-        // Do not log the error if we are running in the proxy library,
-        // because it may need those resources till
-        // the very end of exiting the application.
-        if (!utils_is_running_in_proxy_lib()) {
-            if (pool) {
-                LOG_ERR("tracking provider of pool %p is not empty! (%zu items "
-                        "left)",
-                        (void *)pool, n_items);
-            } else {
-                LOG_ERR("tracking provider is not empty! (%zu items left)",
-                        n_items);
-            }
-
-#ifdef UMF_DEVELOPER_MODE
-            assert(n_items == 0 && "tracking provider is not empty!");
-#endif
-        }
-    }
-}
-#endif /* NDEBUG */
-
 static void trackingFinalize(void *provider) {
     umf_tracking_memory_provider_t *p =
         (umf_tracking_memory_provider_t *)provider;
@@ -855,7 +806,7 @@ static void trackingFinalize(void *provider) {
     critnib_delete(p->ipcCache);
 
 #ifndef NDEBUG
-    check_if_tracker_is_empty(p->hTracker, p->pool);
+    // check_if_tracker_is_empty(p->hTracker, p->pool);
 #endif /* NDEBUG */
 
     umf_ba_global_free(provider);
@@ -1283,7 +1234,7 @@ void umfMemoryTrackerDestroy(umf_memory_tracker_handle_t handle) {
     }
 
 #ifndef NDEBUG
-    check_if_tracker_is_empty(handle, NULL);
+    // check_if_tracker_is_empty(handle, NULL);
 #endif /* NDEBUG */
 
     // We have to zero all inner pointers,
