@@ -2,11 +2,11 @@
 # This workflow only call other workflows.
 name: PR/push
 
+# This job is run at 04:00 UTC every day or on demand.
 on:
-  push:
-    branches-ignore:
-      - 'dependabot/**'
-  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
