@@ -97,6 +97,19 @@ List of sanitizers available on Windows:
 
 Listed sanitizers can be enabled with appropriate [CMake options](#cmake-standard-options).
 
+### Fuzz testing
+
+To enable fuzz testing, the `UMF_BUILD_FUZZTESTS` CMake configuration flag must
+be set to `ON`. Note, that this feature is supported only on Linux and requires
+Clang. Additionally, ensure that the `CMAKE_PREFIX_PATH` includes the directory
+containing the Clang libraries necessary for fuzzing.
+
+Example:
+
+```bash
+cmake -B build -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Debug -DUMF_BUILD_FUZZTESTS=ON -DCMAKE_PREFIX_PATH=/path/to/clang/libs
+```
+
 ### CMake standard options
 
 List of options provided by CMake:
