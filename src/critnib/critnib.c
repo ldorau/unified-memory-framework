@@ -113,9 +113,15 @@ struct critnib_node {
     sh_t shift;
 };
 
+#define REF_COUNT_VALID (1ULL << 63)
+#define REF_COUNT_DELETED (REF_COUNT_VALID - 1)
+
 struct critnib_leaf {
     word key;
     void *value;
+    // The reference counter of the leaf.
+    // The most significant bit is used to mark the leaf as valid.
+    uint64_t ref_count;
 };
 
 struct critnib {
@@ -312,6 +318,37 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
     return k;
 }
 
+static void ref_count_mark_valid(struct critnib_leaf *k) {
+    assert(k);
+    // Set the most significant bit of the ref_count.
+    // This is used to mark the leaf as valid.
+    utils_atomic_store_release_u64(&k->ref_count, REF_COUNT_VALID);
+}
+
+static void ref_count_mark_deleted(struct critnib_leaf *k) {
+    assert(k);
+    // Clear the most significant bit of the ref_count
+    // to mark the leaf as deleted.
+    utils_atomic_and_u64(&k->ref_count, REF_COUNT_DELETED);
+}
+
+static int ref_count_increment(struct critnib_leaf *k) {
+    assert(k);
+
+    // test the most significant bit of the ref_count
+    uint64_t ref_count;
+    utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+    if ((ref_count & REF_COUNT_VALID) == 0) {
+        // the leaf has already been deleted
+        return -1;
+    }
+
+    // the leaf is still valid, increment the ref_count
+    utils_atomic_increment_u64(&k->ref_count);
+
+    return 0;
+}
+
 /*
  * critnib_insert -- write a key:value pair to the critnib structure
  *
@@ -336,6 +373,8 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     utils_atomic_store_release_ptr((void **)&k->key, (void *)key);
     utils_atomic_store_release_ptr((void **)&k->value, value);
+    // mark the leaf as valid
+    ref_count_mark_valid(k);
 
     struct critnib_node *kn = (void *)((word)k | 1);
 
@@ -486,6 +525,8 @@ void *critnib_remove(struct critnib *c, word key) {
     c->pending_del_nodes[del] = n;
 
 del_leaf:
+    // mark the leaf as deleted
+    ref_count_mark_deleted(k);
     value = k->value;
     c->pending_del_leaves[del] = k;
 
@@ -505,12 +546,12 @@ not_found:
  * we need only one that was valid at any point after the call started.
  */
 void *critnib_get(struct critnib *c, word key) {
+    struct critnib_leaf *k;
+    struct critnib_node *n;
     uint64_t wrs1, wrs2;
-    void *res;
+    void *res = NULL;
 
     do {
-        struct critnib_node *n;
-
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs1);
         utils_atomic_load_acquire_ptr((void **)&c->root, (void **)&n);
 
@@ -525,10 +566,19 @@ void *critnib_get(struct critnib *c, word key) {
         }
 
         /* ... as we check it at the end. */
-        struct critnib_leaf *k = to_leaf(n);
+        k = to_leaf(n);
         res = (n && k->key == key) ? k->value : NULL;
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs2);
     } while (wrs1 + DELETED_LIFE <= wrs2);
+
+    if (res == NULL) {
+        return NULL;
+    }
+
+    if (ref_count_increment(k)) {
+        // the leaf has already been deleted
+        return NULL;
+    }
 
     return res;
 }
@@ -653,6 +703,11 @@ void *critnib_find_le(struct critnib *c, word key) {
         res = k ? k->value : NULL;
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs2);
     } while (wrs1 + DELETED_LIFE <= wrs2);
+
+    if (ref_count_increment(k)) {
+        // the leaf has already been deleted
+        return 0;
+    }
 
     return res;
 }
@@ -786,6 +841,11 @@ int critnib_find(struct critnib *c, uintptr_t key, enum find_dir_t dir,
     } while (wrs1 + DELETED_LIFE <= wrs2);
 
     if (k) {
+        if (ref_count_increment(k)) {
+            // the leaf has already been deleted
+            return 0;
+        }
+
         if (rkey) {
             *rkey = _rkey;
         }
