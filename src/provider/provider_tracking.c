@@ -933,6 +933,8 @@ static void check_if_tracker_is_empty(umf_memory_tracker_handle_t hTracker,
                                  FIND_G, &rkey, (void **)&rvalue, &ref_value)) {
             if ((rvalue && rvalue->pool == pool) || pool == NULL) {
                 n_items++;
+                LOG_ERR("[%zu] pool %p ptr %p size %zu", n_items,
+                        (void *)rvalue->pool, (void *)rkey, rvalue->size);
             }
 
             if (ref_value) {
@@ -972,6 +974,10 @@ static void trackingFinalize(void *provider) {
     umfIpcOpenedCacheDestroy(p->hIpcMappedCache);
 
     critnib_delete(p->ipcCache);
+
+#ifndef NDEBUG
+    check_if_tracker_is_empty(p->hTracker, p->pool);
+#endif /* NDEBUG */
 
     umf_ba_global_free(provider);
 }
