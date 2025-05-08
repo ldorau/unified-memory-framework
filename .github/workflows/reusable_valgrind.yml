@@ -47,4 +47,3 @@ jobs:
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build drd || break
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build helgrind || break
         done
-        exit 1
