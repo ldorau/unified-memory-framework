@@ -32,14 +32,15 @@ critnib *critnib_new(free_leaf_t cb_free_leaf, void *leaf_allocator);
 void critnib_delete(critnib *c);
 
 int critnib_insert(critnib *c, uintptr_t key, void *value, int update);
-void *critnib_remove(critnib *c, uintptr_t key);
-void *critnib_get(critnib *c, uintptr_t key);
-void *critnib_find_le(critnib *c, uintptr_t key);
+void *critnib_remove(critnib *c, uintptr_t key, void **ref);
+void *critnib_get(critnib *c, uintptr_t key, void **ref);
+void *critnib_find_le(critnib *c, uintptr_t key, void **ref);
 int critnib_find(critnib *c, uintptr_t key, enum find_dir_t dir,
-                 uintptr_t *rkey, void **rvalue);
+                 uintptr_t *rkey, void **rvalue, void **ref);
 void critnib_iter(critnib *c, uintptr_t min, uintptr_t max,
                   int (*func)(uintptr_t key, void *value, void *privdata),
                   void *privdata);
+int critnib_release(struct critnib *c, void *ref);
 
 #ifdef __cplusplus
 }

@@ -111,11 +111,15 @@ struct critnib_node {
     struct critnib_node *child[SLNODES];
     word path;
     sh_t shift;
+    // padding to 8 bytes so that shift can be stored atomically as uint64_t
+    sh_t unused[7];
 };
 
 struct critnib_leaf {
     word key;
     void *value;
+    void *to_be_freed;
+    uint64_t ref_count;
 };
 
 struct critnib {
@@ -194,7 +198,12 @@ err_free_critnib:
 static void delete_node(struct critnib *c, struct critnib_node *__restrict n) {
     if (is_leaf(n)) {
         if (c->cb_free_leaf && to_leaf(n)) {
-            c->cb_free_leaf(c->leaf_allocator, (void *)to_leaf(n)->value);
+            if (to_leaf(n)->value) {
+                c->cb_free_leaf(c->leaf_allocator, (void *)to_leaf(n)->value);
+            } else if (to_leaf(n)->to_be_freed) {
+                c->cb_free_leaf(c->leaf_allocator,
+                                (void *)to_leaf(n)->to_be_freed);
+            }
         }
         umf_ba_global_free(to_leaf(n));
     } else {
@@ -233,8 +242,13 @@ void critnib_delete(struct critnib *c) {
     for (int i = 0; i < DELETED_LIFE; i++) {
         umf_ba_global_free(c->pending_del_nodes[i]);
         if (c->cb_free_leaf && c->pending_del_leaves[i]) {
-            c->cb_free_leaf(c->leaf_allocator,
-                            (void *)c->pending_del_leaves[i]->value);
+            if (c->pending_del_leaves[i]->value) {
+                c->cb_free_leaf(c->leaf_allocator,
+                                (void *)c->pending_del_leaves[i]->value);
+            } else if (c->pending_del_leaves[i]->to_be_freed) {
+                c->cb_free_leaf(c->leaf_allocator,
+                                (void *)c->pending_del_leaves[i]->to_be_freed);
+            }
         }
         umf_ba_global_free(c->pending_del_leaves[i]);
     }
@@ -288,11 +302,7 @@ static void free_leaf(struct critnib *__restrict c,
         return;
     }
 
-    if (c->cb_free_leaf && k && k->value) {
-        c->cb_free_leaf(c->leaf_allocator, (void *)k->value);
-    }
-
-    utils_atomic_store_release_ptr((void **)&k->value, c->deleted_leaf);
+    utils_atomic_store_release_ptr(&k->value, c->deleted_leaf);
     utils_atomic_store_release_ptr((void **)&c->deleted_leaf, k);
 }
 
@@ -305,8 +315,18 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
     }
 
     struct critnib_leaf *k = c->deleted_leaf;
-
     c->deleted_leaf = k->value;
+
+    uint64_t ref_count = 0;
+    void *to_be_freed = NULL;
+    utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+    utils_atomic_load_acquire_ptr(&k->to_be_freed, &to_be_freed);
+    if (ref_count && to_be_freed) {
+        LOG_DEBUG("WARNING: reusing probably non-freed leaf: key = %p, value = "
+                  "%p, ref_count = %llu",
+                  (void *)k->key, to_be_freed, (unsigned long long)ref_count);
+    }
+
     utils_annotate_memory_new(k, sizeof(*k));
 
     return k;
@@ -334,8 +354,12 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     utils_annotate_memory_no_check(k, sizeof(struct critnib_leaf));
 
+    utils_atomic_store_release_ptr(&k->to_be_freed, 0);
     utils_atomic_store_release_ptr((void **)&k->key, (void *)key);
-    utils_atomic_store_release_ptr((void **)&k->value, value);
+    utils_atomic_store_release_ptr(&k->value, value);
+
+    // mark the leaf as valid (ref_count == 1)
+    utils_atomic_store_release_u64(&k->ref_count, 1ULL);
 
     struct critnib_node *kn = (void *)((word)k | 1);
 
@@ -370,10 +394,6 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     word at = path ^ key;
     if (!at) {
         ASSERT(is_leaf(n));
-        if (to_leaf(kn)->value == value) {
-            // do not free the value
-            to_leaf(kn)->value = NULL;
-        }
         free_leaf(c, to_leaf(kn));
 
         if (update) {
@@ -392,11 +412,10 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     struct critnib_node *m = alloc_node(c);
     if (!m) {
         free_leaf(c, to_leaf(kn));
-
         utils_mutex_unlock(&c->mutex);
-
         return ENOMEM;
     }
+
     utils_annotate_memory_no_check(m, sizeof(struct critnib_node));
 
     for (int i = 0; i < SLNODES; i++) {
@@ -405,8 +424,8 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     utils_atomic_store_release_ptr((void *)&m->child[slice_index(key, sh)], kn);
     utils_atomic_store_release_ptr((void *)&m->child[slice_index(path, sh)], n);
-    m->shift = sh;
-    utils_atomic_store_release_u64((void *)&m->path, key & path_mask(sh));
+    utils_atomic_store_release_u64((uint64_t *)&m->shift, (uint64_t)sh);
+    utils_atomic_store_release_u64((uint64_t *)&m->path, key & path_mask(sh));
 
     utils_atomic_store_release_ptr((void **)parent, m);
 
@@ -418,9 +437,13 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 /*
  * critnib_remove -- delete a key from the critnib structure, return its value
  */
-void *critnib_remove(struct critnib *c, word key) {
+void *critnib_remove(struct critnib *c, word key, void **ref) {
     struct critnib_leaf *k;
     void *value = NULL;
+
+    if (!ref) {
+        return NULL;
+    }
 
     utils_mutex_lock(&c->mutex);
 
@@ -429,8 +452,21 @@ void *critnib_remove(struct critnib *c, word key) {
         goto not_found;
     }
 
-    word del =
-        (utils_atomic_increment_u64(&c->remove_count) - 1) % DELETED_LIFE;
+    word del;
+    int i_del = 0;
+    uint64_t ref_count = 0;
+    do {
+        del = (utils_atomic_increment_u64(&c->remove_count) - 1) % DELETED_LIFE;
+        if (++i_del == (DELETED_LIFE + 1)) {
+            break;
+        }
+
+        k = c->pending_del_leaves[del];
+        if (k) {
+            utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+        }
+    } while (k && (ref_count > 0));
+
     free_node(c, c->pending_del_nodes[del]);
     free_leaf(c, c->pending_del_leaves[del]);
     c->pending_del_nodes[del] = NULL;
@@ -491,11 +527,53 @@ void *critnib_remove(struct critnib *c, word key) {
 
 del_leaf:
     value = k->value;
+    utils_atomic_store_release_ptr(&k->to_be_freed, value);
+    utils_atomic_store_release_ptr(&k->value, NULL);
     c->pending_del_leaves[del] = k;
+    *ref = k;
 
 not_found:
     utils_mutex_unlock(&c->mutex);
     return value;
+}
+
+/*
+ * critnib_release -- release a reference to a key
+ */
+int critnib_release(struct critnib *c, void *ref) {
+    if (!c || !ref) {
+        return -1;
+    }
+
+    struct critnib_leaf *k = (struct critnib_leaf *)ref;
+
+    uint64_t ref_count;
+    utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+
+    if (ref_count == 0) {
+        return -1;
+    }
+
+    /* decrement the reference count */
+    if (utils_atomic_decrement_u64(&k->ref_count) == 0) {
+        void *to_be_freed = NULL;
+        utils_atomic_load_acquire_ptr(&k->to_be_freed, &to_be_freed);
+        if (to_be_freed) {
+            utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
+            if (c->cb_free_leaf) {
+                c->cb_free_leaf(c->leaf_allocator, to_be_freed);
+            }
+        }
+    }
+
+#ifndef NDEBUG
+    // check if the reference count is overflowed
+    utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+    assert((ref_count & (1ULL << 63)) == 0);
+    assert(ref_count != (uint64_t)(0 - 1ULL));
+#endif
+
+    return 0;
 }
 
 /*
@@ -508,13 +586,17 @@ not_found:
  * Counterintuitively, it's pointless to return the most current answer,
  * we need only one that was valid at any point after the call started.
  */
-void *critnib_get(struct critnib *c, word key) {
+void *critnib_get(struct critnib *c, word key, void **ref) {
+    struct critnib_leaf *k;
+    struct critnib_node *n;
     uint64_t wrs1, wrs2;
-    void *res;
+    void *res = NULL;
+
+    if (!ref) {
+        return NULL;
+    }
 
     do {
-        struct critnib_node *n;
-
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs1);
         utils_atomic_load_acquire_ptr((void **)&c->root, (void **)&n);
 
@@ -524,15 +606,30 @@ void *critnib_get(struct critnib *c, word key) {
 		 * going wrong way if our path is missing, but that's ok...
 		 */
         while (n && !is_leaf(n)) {
+            sh_t sh = n->shift;
             utils_atomic_load_acquire_ptr(
-                (void **)&n->child[slice_index(key, n->shift)], (void **)&n);
+                (void **)&n->child[slice_index(key, sh)], (void **)&n);
         }
 
         /* ... as we check it at the end. */
-        struct critnib_leaf *k = to_leaf(n);
+        k = to_leaf(n);
         res = (n && k->key == key) ? k->value : NULL;
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs2);
     } while (wrs1 + DELETED_LIFE <= wrs2);
+
+    if (res) {
+        uint64_t ref_count;
+        utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+        if (ref_count == 0) {
+            return NULL;
+        }
+        if (utils_atomic_increment_u64(&k->ref_count) == 1) {
+            utils_atomic_decrement_u64(&k->ref_count);
+            return NULL;
+        }
+
+        *ref = k;
+    }
 
     return res;
 }
@@ -645,18 +742,41 @@ static struct critnib_leaf *find_le(struct critnib_node *__restrict n,
  *
  * Same guarantees as critnib_get().
  */
-void *critnib_find_le(struct critnib *c, word key) {
+void *critnib_find_le(struct critnib *c, word key, void **ref) {
+    struct critnib_leaf *k;
     uint64_t wrs1, wrs2;
     void *res;
+
+    if (!ref) {
+        return NULL;
+    }
 
     do {
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs1);
         struct critnib_node *n; /* avoid a subtle TOCTOU */
         utils_atomic_load_acquire_ptr((void **)&c->root, (void **)&n);
-        struct critnib_leaf *k = n ? find_le(n, key) : NULL;
-        res = k ? k->value : NULL;
+        k = n ? find_le(n, key) : NULL;
+        if (k) {
+            utils_atomic_load_acquire_ptr(&k->value, &res);
+        } else {
+            res = NULL;
+        }
         utils_atomic_load_acquire_u64(&c->remove_count, &wrs2);
     } while (wrs1 + DELETED_LIFE <= wrs2);
+
+    if (res) {
+        uint64_t ref_count;
+        utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+        if (ref_count == 0) {
+            return NULL;
+        }
+        if (utils_atomic_increment_u64(&k->ref_count) == 1) {
+            utils_atomic_decrement_u64(&k->ref_count);
+            return NULL;
+        }
+
+        *ref = k;
+    }
 
     return res;
 }
@@ -743,11 +863,15 @@ static struct critnib_leaf *find_ge(struct critnib_node *__restrict n,
  * critnib_find -- parametrized query, returns 1 if found
  */
 int critnib_find(struct critnib *c, uintptr_t key, enum find_dir_t dir,
-                 uintptr_t *rkey, void **rvalue) {
+                 uintptr_t *rkey, void **rvalue, void **ref) {
     uint64_t wrs1, wrs2;
     struct critnib_leaf *k;
     uintptr_t _rkey = (uintptr_t)0x0;
     void **_rvalue = NULL;
+
+    if (!ref) {
+        return 0;
+    }
 
     /* <42 ≡ ≤41 */
     if (dir < -1) {
@@ -790,6 +914,18 @@ int critnib_find(struct critnib *c, uintptr_t key, enum find_dir_t dir,
     } while (wrs1 + DELETED_LIFE <= wrs2);
 
     if (k) {
+        uint64_t ref_count;
+        utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
+        if (ref_count == 0) {
+            return 0;
+        }
+        if (utils_atomic_increment_u64(&k->ref_count) == 1) {
+            utils_atomic_decrement_u64(&k->ref_count);
+            return 0;
+        }
+
+        *ref = k;
+
         if (rkey) {
             *rkey = _rkey;
         }
