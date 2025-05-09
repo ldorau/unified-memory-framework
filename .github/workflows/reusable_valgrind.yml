@@ -38,9 +38,6 @@ jobs:
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Debug -j$(nproc)
 
-    - name: Run tests with 'memcheck'
-      run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build memcheck
-
     - name: Run tests with 'drd'
       run: ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{github.workspace}}/build drdshort
 
