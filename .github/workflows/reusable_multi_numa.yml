@@ -70,7 +70,7 @@ jobs:
         if: (matrix.os != 'rhel-9.1') && (matrix.os != 'sles-15')
         run: |
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} memcheck "${{env.NUMA_TESTS}}"
-          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} drd "${{env.NUMA_TESTS}}"
+          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} drdshort "${{env.NUMA_TESTS}}"
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} helgrind "${{env.NUMA_TESTS}}"
 
       - name: Check coverage

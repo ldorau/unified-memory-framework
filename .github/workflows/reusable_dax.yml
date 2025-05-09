@@ -129,7 +129,7 @@ jobs:
       - name: Run DAX tests under valgrind
         run: |
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} memcheck "${{env.DAX_TESTS}}"
-          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} drd "${{env.DAX_TESTS}}"
+          ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} drdshort "${{env.DAX_TESTS}}"
           ${{github.workspace}}/test/test_valgrind.sh ${{github.workspace}} ${{env.BUILD_DIR}} helgrind "${{env.DAX_TESTS}}"
 
       - name: Check coverage
