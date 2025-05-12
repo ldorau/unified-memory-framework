@@ -6,6 +6,7 @@
 */
 
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -440,9 +441,14 @@ static umf_result_t op_initialize(umf_memory_provider_handle_t provider,
 
     if (n_arenas == 0) {
         n_arenas = utils_get_num_cores() * 4;
+        if (n_arenas > MALLOCX_ARENA_MAX) {
+            n_arenas = MALLOCX_ARENA_MAX;
+        }
     }
+
     if (n_arenas > MALLOCX_ARENA_MAX) {
-        LOG_ERR("Number of arenas exceeds the limit.");
+        LOG_ERR("Number of arenas %zu exceeds the limit (%i).", n_arenas,
+                MALLOCX_ARENA_MAX);
         return UMF_RESULT_ERROR_INVALID_ARGUMENT;
     }
 
@@ -461,7 +467,19 @@ static umf_result_t op_initialize(umf_memory_provider_handle_t provider,
         err = je_mallctl("arenas.create", (void *)&arena_index, &unsigned_size,
                          NULL, 0);
         if (err) {
-            LOG_ERR("Could not create arena.");
+            // EAGAIN - means that a memory allocation failure occurred
+            // (2 * utils_get_num_cores()) is the required minimum number of arenas
+            if (err == EAGAIN && (i >= (2 * utils_get_num_cores()))) {
+                LOG_WARN("Could not create the #%zu jemalloc arena (%s), "
+                         "setting n_arenas = %zu",
+                         i + 1, strerror(err), i);
+                n_arenas = i;
+                break;
+            }
+
+            LOG_ERR("Could not create a jemalloc arena (n_arenas = %zu, i = "
+                    "%zu, arena_index = %u, unsigned_size = %zu): %s",
+                    n_arenas, i, arena_index, unsigned_size, strerror(err));
             goto err_cleanup;
         }
 
