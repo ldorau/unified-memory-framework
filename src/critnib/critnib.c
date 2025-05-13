@@ -335,6 +335,7 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
             LOG_DEBUG("WARNING: reusing probably non-freed leaf: key = %p, "
                       "value = %p, ref_count = %llu",
                       key, to_be_freed, (unsigned long long)ref_count);
+            assert(ref_count == 0 && to_be_freed == NULL);
         }
     }
 
