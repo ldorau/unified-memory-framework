@@ -90,7 +90,8 @@
 #define SLNODES (1 << SLICE)
 
 typedef uintptr_t word;
-typedef unsigned char sh_t;
+// typedef unsigned char sh_t;
+typedef uint64_t sh_t;
 
 struct critnib_node {
     /*
@@ -112,7 +113,7 @@ struct critnib_node {
     word path;
     sh_t shift;
     // padding to 8 bytes so that shift can be stored atomically as uint64_t
-    sh_t unused[7];
+    // sh_t unused[7];
 };
 
 struct critnib_leaf {
