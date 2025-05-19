@@ -257,10 +257,16 @@ void critnib_delete(struct critnib *c) {
         umf_ba_global_free(c->pending_del_leaves[i]);
     }
 
+    uint64_t counter = 0;
     for (struct critnib_leaf *k = c->pending_del_leaf; k;) {
         struct critnib_leaf *kk = (struct critnib_leaf *)k->key;
         umf_ba_global_free(k);
+        counter++;
         k = kk;
+    }
+
+    if (counter) {
+        fprintf(stderr, "\n>>>> Pending delete leaves left: %lu\n\n", counter);
     }
 
     umf_ba_global_free(c);
