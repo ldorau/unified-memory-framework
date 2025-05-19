@@ -50,6 +50,9 @@ typedef struct tracker_alloc_info_t {
     // in the next level of map
     // falling within the current range
     size_t n_children;
+#ifndef NDEBUG
+    size_t is_freed;
+#endif /* NDEBUG */
 } tracker_alloc_info_t;
 
 typedef struct tracker_ipc_info_t {
@@ -191,6 +194,9 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
     value->pool = pool;
     value->size = size;
     value->n_children = 0;
+#ifndef NDEBUG
+    value->is_freed = 0;
+#endif /* NDEBUG */
 
     assert(level < MAX_LEVELS_OF_ALLOC_SEGMENT_MAP);
     int ret = critnib_insert(hTracker->alloc_segments_map[level],
@@ -270,7 +276,17 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
             continue;
         }
 
+#ifndef NDEBUG
+        // Check if rvalue was freed (rvalue->is_freed == 0xDEADBEEF when rvalue is freed).
+        assert(rvalue->is_freed != 0xDEADBEEF);
+#endif /* NDEBUG */
+
         utils_atomic_load_acquire_u64((uint64_t *)&rvalue->size, &rsize);
+
+#ifndef NDEBUG
+        // Check if rvalue was freed (rvalue->is_freed == 0xDEADBEEF when rvalue is freed).
+        assert(rvalue->is_freed != 0xDEADBEEF);
+#endif /* NDEBUG */
 
         if ((uintptr_t)ptr < rkey + rsize) {
             if (level == MAX_LEVELS_OF_ALLOC_SEGMENT_MAP - 1) {
@@ -1348,6 +1364,10 @@ void umfTrackingMemoryProviderGetUpstreamProvider(
 
 static void free_leaf(void *leaf_allocator, void *ptr) {
     if (ptr) {
+#ifndef NDEBUG
+        tracker_alloc_info_t *value = (tracker_alloc_info_t *)ptr;
+        value->is_freed = 0xDEADBEEF;
+#endif /* NDEBUG */
         umf_ba_free(leaf_allocator, ptr);
     }
 }
