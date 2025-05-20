@@ -4,6 +4,7 @@ name: Looped_Sanitizers
 
 # This job is run at 00:00 UTC every day or on demand.
 on:
+  push:
   workflow_dispatch:
   schedule:
     - cron: '0 0 * * *'
