@@ -4,6 +4,7 @@ name: Sanitizers - Looped
 
 # This job is run every Saturday at 01:00 UTC or on demand.
 on:
+  push:
   workflow_dispatch:
   schedule:
     - cron: '0 1 * * 6' # every Saturday at 01:00 UTC
