@@ -90,7 +90,7 @@
 #define SLNODES (1 << SLICE)
 
 typedef uintptr_t word;
-typedef uint64_t sh_t;
+typedef uint8_t sh_t;
 
 struct critnib_node {
     /*
@@ -455,7 +455,7 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     utils_atomic_store_release_ptr((void *)&m->child[slice_index(key, sh)], kn);
     utils_atomic_store_release_ptr((void *)&m->child[slice_index(path, sh)], n);
-    utils_atomic_store_release_u64((uint64_t *)&m->shift, (uint64_t)sh);
+    utils_atomic_store_release_u8(&m->shift, sh);
     utils_atomic_store_release_u64((uint64_t *)&m->path, key & path_mask(sh));
 
     utils_atomic_store_release_ptr((void **)parent, m);
@@ -678,7 +678,6 @@ void *critnib_get(struct critnib *c, word key, void **ref) {
     struct critnib_node *n;
     uint64_t wrs1, wrs2;
     void *res = NULL;
-    uint64_t shift64;
     sh_t shift;
     word kkey;
 
@@ -696,8 +695,7 @@ void *critnib_get(struct critnib *c, word key, void **ref) {
 		 * going wrong way if our path is missing, but that's ok...
 		 */
         while (n && !is_leaf(n)) {
-            utils_atomic_load_acquire_u64((uint64_t *)&n->shift, &shift64);
-            shift = (sh_t)shift64;
+            utils_atomic_load_acquire_u8(&n->shift, &shift);
             utils_atomic_load_acquire_ptr(
                 (void **)&n->child[slice_index(key, shift)], (void **)&n);
         }
@@ -782,10 +780,8 @@ static struct critnib_leaf *find_le(struct critnib_node *__restrict n,
 	 * needs to be masked away as well.
 	 */
     word path;
-    uint64_t shift64;
     sh_t shift;
-    utils_atomic_load_acquire_u64((uint64_t *)&n->shift, &shift64);
-    shift = (sh_t)shift64;
+    utils_atomic_load_acquire_u8(&n->shift, &shift);
     utils_atomic_load_acquire_u64((uint64_t *)&n->path, (uint64_t *)&path);
     if ((key ^ path) >> (shift) & ~NIB) {
         /*
