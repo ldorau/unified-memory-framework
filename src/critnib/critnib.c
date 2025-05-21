@@ -645,16 +645,16 @@ int critnib_remove_release(struct critnib *c, word key) {
  * counter and return 0 (success).
  */
 static inline int increment_ref_count(struct critnib_leaf *k) {
-    uint64_t ref_count;
-    utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
-    if (ref_count == 0) {
-        return -1;
-    }
+    uint64_t expected;
+    uint64_t desired;
 
-    if (utils_atomic_increment_u64(&k->ref_count) == 1) {
-        utils_atomic_decrement_u64(&k->ref_count);
-        return -1;
-    }
+    do {
+        utils_atomic_load_acquire_u64(&k->ref_count, &expected);
+        if (expected == 0) {
+            return -1;
+        }
+        desired = expected + 1;
+    } while (!utils_compare_exchange_u64(&k->ref_count, &expected, &desired));
 
     return 0;
 }
