@@ -71,8 +71,7 @@ jobs:
       env:
         ASAN_OPTIONS: allocator_may_return_null=1
         TSAN_OPTIONS: allocator_may_return_null=1
-      run: |
-        ctest --output-on-failure
+      run: while ctest --output-on-failure; do date; done && exit 1
 
   windows-build:
     env:
