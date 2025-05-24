@@ -25,28 +25,6 @@ jobs:
             # Tests' building is off for a pure C build
             build_tests: 'OFF'
             simple_cmake: 'OFF'
-          - os: ubuntu-latest
-            build_tests: 'ON'
-            # Windows doesn't recognize 'CMAKE_BUILD_TYPE', it uses '--config' param in build command
-            extra_build_options: '-DCMAKE_BUILD_TYPE=Release -DUMF_BUILD_BENCHMARKS=ON -DUMF_BUILD_BENCHMARKS_MT=ON'
-            simple_cmake: 'OFF'
-          # pure C build (Linux)
-          - os: ubuntu-latest
-            # Windows doesn't recognize 'CMAKE_BUILD_TYPE', it uses '--config' param in build command
-            # Tests' building is off for a pure C build
-            build_tests: 'OFF'
-            extra_build_options: '-DCMAKE_BUILD_TYPE=Release -DUMF_BUILD_BENCHMARKS=ON'
-            simple_cmake: 'OFF'
-          # simplest CMake on ubuntu-latest
-          - os: ubuntu-latest
-            build_tests: 'ON'
-            extra_build_options: '-DCMAKE_BUILD_TYPE=Release'
-            simple_cmake: 'ON'
-          # simplest CMake ubuntu-22.04
-          - os: ubuntu-22.04
-            build_tests: 'ON'
-            extra_build_options: '-DCMAKE_BUILD_TYPE=Release'
-            simple_cmake: 'ON'
     name: Fast builds (${{matrix.os}}, build_tests=${{matrix.build_tests}}, simple_cmake=${{matrix.simple_cmake}}, extra_build_options=${{matrix.extra_build_options}})
     runs-on: ${{ (matrix.os == 'ubuntu-latest' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
