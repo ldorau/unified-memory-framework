@@ -941,7 +941,7 @@ static void check_if_tracker_is_empty(umf_memory_tracker_handle_t hTracker,
 
         while (1 == critnib_find(hTracker->alloc_segments_map[i], last_key,
                                  FIND_G, &rkey, (void **)&rvalue, &ref_value)) {
-            if ((rvalue && rvalue->pool == pool) || pool == NULL) {
+            if (rvalue && ((rvalue->pool == pool) || pool == NULL)) {
                 n_items++;
                 LOG_DEBUG(
                     "found abandoned allocation in the tracking provider: "
