@@ -316,6 +316,126 @@ struct disjoint_pool : public pool_interface<Provider> {
     }
 };
 
+template <typename Provider>
+struct disjoint_pool_stack : public disjoint_pool<Provider> {
+    using base = disjoint_pool<Provider>;
+    std::vector<umf_memory_provider_handle_t>
+        providers; // we need only store them for cleanup so single vector is enough
+    std::vector<std::vector<umf_memory_pool_handle_t>> pools;
+    std::vector<void *> pool_ptrs; // for cleanup
+    static constexpr size_t firstPoolSize = 2ull * 1024 * 1024 * 1024; // 2GB
+    void SetUp(::benchmark::State &state) {
+        base::provider.SetUp(state);
+        if (state.thread_index() != 0) {
+            return;
+        }
+        providers.push_back(base::provider.provider);
+        base::provider.provider = NULL;
+        auto params = base::getParams(state);
+        umf_memory_pool_handle_t pool = NULL;
+
+        auto umf_result = umfPoolCreate(base::getOps(state), providers[0],
+                                        params.get(), 0, &pool);
+        if (umf_result != UMF_RESULT_SUCCESS) {
+            state.SkipWithError("umfPoolCreate() failed");
+            return;
+        }
+
+        int nallocs = 0;
+
+        pools.push_back({pool});
+
+        umf_fixed_memory_provider_params_handle_t params_fixed;
+        umf_result =
+            umfFixedMemoryProviderParamsCreate(&params_fixed, (void *)0x1,
+                                               0x1); //dummy params
+        size_t poolSize = firstPoolSize;
+        for (size_t level = 1; level < 7; ++level) {
+            poolSize /= 2;
+            std::vector<umf_memory_pool_handle_t> current_level_pools;
+
+            const auto &parent_level_pools = pools[level - 1];
+
+            for (size_t parent_idx = 0; parent_idx < parent_level_pools.size();
+                 ++parent_idx) {
+                for (int child = 0; child < 2; ++child) {
+                    void *ptr =
+                        umfPoolMalloc(parent_level_pools[parent_idx], poolSize);
+                    fprintf(stderr, "BENCH(%i): umfPoolMalloc(pool=%p, size=%zu) = %p\n", nallocs, (void *)parent_level_pools[parent_idx], poolSize, ptr);
+                    fflush(stderr);
+                    nallocs++;
+                    if (!ptr) {
+                        state.SkipWithError("umfPoolMalloc() failed");
+                        return;
+                    }
+                    pool_ptrs.push_back(ptr);
+                    umf_memory_provider_handle_t provider;
+                    umf_result = umfFixedMemoryProviderParamsSetMemory(
+                        params_fixed, ptr, poolSize);
+
+                    umf_result_t umf_result = umfMemoryProviderCreate(
+                        umfFixedMemoryProviderOps(), params_fixed, &provider);
+                    if (umf_result != UMF_RESULT_SUCCESS) {
+                        state.SkipWithError("umfMemoryProviderCreate() failed");
+                        return;
+                    }
+                    providers.push_back(provider);
+
+                    umf_memory_pool_handle_t newPool;
+                    umf_result =
+                        umfPoolCreate(base::getOps(state), provider,
+                                      params.get(), poolSize, &newPool);
+                    if (umf_result != UMF_RESULT_SUCCESS) {
+                        state.SkipWithError("umfDisjointPoolCreate() failed");
+                        return;
+                    }
+
+                    current_level_pools.push_back(newPool);
+                }
+            }
+
+            pools.push_back(std::move(current_level_pools));
+        }
+    }
+
+    void TearDown(::benchmark::State &state) {
+        if (state.thread_index() != 0) {
+            return;
+        }
+        //free pool_ptrs in reverse order
+        // without iterators
+        printf("cleanup started \n");
+
+        for (int i = pool_ptrs.size() - 1; i >= 0; --i) {
+            auto ptr = pool_ptrs[i];
+            if (ptr) {
+                umf_memory_pool_handle_t pool = umfPoolByPtr(ptr);
+                fprintf(stderr, "BENCH(%i): umfPoolFree(pool=%p, ptr=%p)\n", i, (void *)pool, ptr);
+                fflush(stderr);
+                umfPoolFree(pool, ptr);
+                // umfFree(ptr);
+                pool_ptrs[i] = nullptr; // clear pointer after free
+            }
+        }
+        pool_ptrs.clear();
+
+        for (auto &pool_level : pools) {
+            for (auto &pool : pool_level) {
+                umfPoolDestroy(pool);
+            }
+        }
+
+        for (auto &provider : providers) {
+            umfMemoryProviderDestroy(provider);
+        }
+        pools.clear();
+        providers.clear();
+        base::TearDown(state);
+    }
+    static std::string name() {
+        return "disjoint_pool_stacked<" + Provider::name() + ">";
+    }
+};
 #ifdef UMF_POOL_JEMALLOC_ENABLED
 template <typename Provider>
 struct jemalloc_pool : public pool_interface<Provider> {

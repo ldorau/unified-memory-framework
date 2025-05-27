@@ -190,7 +190,9 @@ umf_result_t umfPoolCreate(const umf_memory_pool_ops_t *ops,
 
 void *umfPoolMalloc(umf_memory_pool_handle_t hPool, size_t size) {
     UMF_CHECK((hPool != NULL), NULL);
-    return hPool->ops.malloc(hPool->pool_priv, size);
+    void *ret = hPool->ops.malloc(hPool->pool_priv, size);
+    fprintf(stderr, "umfPoolMalloc(pool=%p, size=%zu) = %p\n", (void *)hPool, size, ret);
+    return ret;
 }
 
 void *umfPoolAlignedMalloc(umf_memory_pool_handle_t hPool, size_t size,
@@ -217,6 +219,7 @@ size_t umfPoolMallocUsableSize(umf_memory_pool_handle_t hPool,
 
 umf_result_t umfPoolFree(umf_memory_pool_handle_t hPool, void *ptr) {
     UMF_CHECK((hPool != NULL), UMF_RESULT_ERROR_INVALID_ARGUMENT);
+    fprintf(stderr, "umfPoolFree(pool=%p, ptr=%p)\n", (void *)hPool, ptr);
     return hPool->ops.free(hPool->pool_priv, ptr);
 }
 
