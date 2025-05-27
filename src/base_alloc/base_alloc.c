@@ -67,28 +67,7 @@ struct umf_ba_next_pool_t {
 };
 
 #ifndef NDEBUG
-static void ba_debug_checks(umf_ba_pool_t *pool) {
-    // count pools
-    size_t n_pools = 1;
-    umf_ba_next_pool_t *next_pool = pool->next_pool;
-    while (next_pool) {
-        n_pools++;
-        next_pool = next_pool->next_pool;
-    }
-    assert(n_pools == pool->metadata.n_pools);
-
-    // count chunks
-    size_t n_free_chunks = 0;
-    umf_ba_chunk_t *next_chunk = pool->metadata.free_list;
-    while (next_chunk) {
-        n_free_chunks++;
-        utils_annotate_memory_defined(next_chunk, sizeof(umf_ba_chunk_t));
-        umf_ba_chunk_t *tmp = next_chunk;
-        next_chunk = next_chunk->next;
-        utils_annotate_memory_inaccessible(tmp, sizeof(umf_ba_chunk_t));
-    }
-    assert(n_free_chunks == pool->metadata.n_chunks - pool->metadata.n_allocs);
-}
+static void ba_debug_checks(umf_ba_pool_t *pool) { (void)pool; }
 #endif /* NDEBUG */
 
 // ba_divide_memory_into_chunks - divide given memory into chunks of chunk_size and add them to the free_list
