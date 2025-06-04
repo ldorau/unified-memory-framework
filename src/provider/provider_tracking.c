@@ -1255,7 +1255,8 @@ static umf_result_t trackingOpenIpcHandle(void *provider, void *providerIpcData,
             ret = upstreamOpenIPCHandle(p, providerIpcData,
                                         ipcUmfData->baseSize, cache_entry);
         }
-        mapped_ptr = cache_entry->mapped_base_ptr;
+        utils_atomic_load_acquire_ptr(&(cache_entry->mapped_base_ptr),
+                                      (void **)&mapped_ptr);
         utils_mutex_unlock(&(cache_entry->mmap_lock));
     }
 
