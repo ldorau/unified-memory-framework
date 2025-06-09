@@ -168,6 +168,7 @@ void umfIpcOpenedCacheDestroy(ipc_opened_cache_handle_t cache) {
         cache->eviction_cb(&entry->key, &entry->value);
         utils_mutex_destroy_not_free(&(entry->value.mmap_lock));
         umf_ba_free(cache->global->cache_allocator, entry);
+        fprintf(stderr, "%p umf_ba_free %s:%i\n", entry, __FILE__, __LINE__);
     }
     HASH_CLEAR(hh, cache->hash_table);
     utils_mutex_unlock(&(cache->global->cache_lock));
@@ -232,6 +233,8 @@ umf_result_t umfIpcOpenedCacheGet(ipc_opened_cache_handle_t cache,
             evicted = true;
         } else { // allocate the new entry
             entry = umf_ba_alloc(cache->global->cache_allocator);
+            fprintf(stderr, "%p umf_ba_alloc %s:%i\n", entry, __FILE__,
+                    __LINE__);
             if (!entry) {
                 ret = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
                 LOG_ERR("Failed to allocate memory for a new IPC cache entry");
