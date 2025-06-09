@@ -415,6 +415,8 @@ umfMemoryTrackerAddIpcSegment(umf_memory_tracker_handle_t hTracker,
     int ret =
         critnib_insert(hTracker->ipc_segments_map, (uintptr_t)ptr, value, 0);
     if (ret == 0) {
+        fprintf(stderr, "%p critnib_insert(value=%p) %s:%i\n", ptr, value,
+                __FILE__, __LINE__);
         LOG_DEBUG("IPC memory region is added, tracker=%p, ptr=%p, size=%zu, "
                   "provider=%p, cache_entry=%p",
                   (void *)hTracker, ptr, size, (void *)provider,
@@ -444,7 +446,14 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
     void *ref_value = NULL;
     void *value =
         critnib_remove(hTracker->ipc_segments_map, (uintptr_t)ptr, &ref_value);
+    fprintf(stderr, "%p critnib_remove(ptr=%p, value=%p) %s:%i\n", ptr, ptr,
+            value, __FILE__, __LINE__);
     if (!value) {
+        if (ref_value) {
+            fprintf(stderr, "%p critnib_release %s:%i NO VALUE!\n", ptr,
+                    __FILE__, __LINE__);
+            critnib_release(hTracker->ipc_segments_map, ref_value);
+        }
         LOG_ERR("pointer %p not found in the ipc_segments_map", ptr);
         return UMF_RESULT_ERROR_UNKNOWN;
     }
@@ -457,6 +466,7 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
               (void *)v->ipc_cache_value);
 
     assert(ref_value);
+    fprintf(stderr, "%p critnib_release %s:%i\n", ptr, __FILE__, __LINE__);
     critnib_release(hTracker->ipc_segments_map, ref_value);
 
     return UMF_RESULT_SUCCESS;
