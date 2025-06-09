@@ -629,11 +629,16 @@ int critnib_release(struct critnib *c, void *ref) {
         uint8_t desired = 0;
         if (utils_compare_exchange_u8(&k->pending_deleted_leaf, &expected,
                                       &desired)) {
+            // mark the leaf as not used (ref_count == 0)
+            utils_atomic_store_release_u64(&k->ref_count, 0ULL);
+            // add the leaf to the deleted leaf list
             add_to_deleted_leaf_list(c, k);
+            return 0;
         }
 
         // mark the leaf as not used (ref_count == 0)
         utils_atomic_store_release_u64(&k->ref_count, 0ULL);
+        return 0;
     }
 
 #ifndef NDEBUG
