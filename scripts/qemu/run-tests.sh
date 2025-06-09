@@ -31,7 +31,7 @@ echo "## Running all tests ..."
 ctest --verbose
 
 echo "## Running tests bound to a numa node 0 and node 1 ..."
-numactl -N 0 ctest --output-on-failure
+while numactl -N 0 ctest --output-on-failure -R ipc_max_opened_limit ; do date ; done && exit 1
 numactl -N 1 ctest --output-on-failure
 
 if [ "$COVERAGE" = "COVERAGE" ]; then
