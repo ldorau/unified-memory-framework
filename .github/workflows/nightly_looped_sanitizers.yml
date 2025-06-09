@@ -2,11 +2,11 @@
 # This build lasts 6 hours.
 name: Sanitizers - Looped
 
-# This job is run every Saturday at 01:00 UTC or on demand.
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 1 * * 6' # every Saturday at 01:00 UTC
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
 
 env:
   BUILD_DIR : "${{github.workspace}}/build"
