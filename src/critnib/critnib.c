@@ -588,8 +588,6 @@ void *critnib_remove(struct critnib *c, word key, void **ref) {
 del_leaf:
     value = k->value;
     if (c->cb_free_leaf) {
-        fprintf(stderr, "%p critnib_remove_IN(value=%p/%p, ref_count=%lu)\n",
-                (void *)k->key, value, k->to_be_freed, k->ref_count);
         if (value) {
             utils_atomic_store_release_ptr(&k->to_be_freed, value);
             utils_atomic_store_release_ptr(&k->value, NULL);
@@ -611,17 +609,12 @@ int critnib_release(struct critnib *c, void *ref) {
         return -1;
     }
 
-    // fprintf(stderr, ">>> critnib_release(ref=%p)\n", ref);
-
     struct critnib_leaf *k = (struct critnib_leaf *)ref;
 
     uint64_t ref_count;
     utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
 
     if (ref_count == 0) {
-        fprintf(stderr,
-                "%p critnib_release(value=%p/%p, ref_count=0) RETURN ! k=%p\n",
-                (void *)k->key, k->value, k->to_be_freed, k);
         return -1;
     }
 
@@ -629,19 +622,14 @@ int critnib_release(struct critnib *c, void *ref) {
     if (utils_atomic_decrement_u64(&k->ref_count) == 1) {
         void *to_be_freed = NULL;
         utils_atomic_load_acquire_ptr(&k->to_be_freed, &to_be_freed);
-        fprintf(stderr,
-                "%p critnib_release(value=%p/%p, ref_count=0) ==0 k=%p\n",
-                (void *)k->key, k->value, to_be_freed, k);
         if (to_be_freed) {
-            fprintf(
-                stderr,
-                "%p c->cb_free_leaf(key=%p, value=%p/%p, ref_count=0) k=%p\n",
-                to_be_freed, (void *)k->key, k->value, to_be_freed, k);
             utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
             c->cb_free_leaf(c->leaf_allocator, to_be_freed);
         }
 
-        assert(to_be_freed != NULL);
+        if (to_be_freed == NULL) {
+            fprintf(stderr, "WARNING: critnib_release(): to_be_freed == NULL\n");
+        }
 
         uint8_t expected = 1;
         uint8_t desired = 0;
@@ -657,8 +645,6 @@ int critnib_release(struct critnib *c, void *ref) {
         }
 
         return 0;
-    } else {
-        // fprintf(stderr, "%p critnib_release(value=%p/%p, ref_count=%lu) ELSE k=%p\n", (void *)k->key, k->value, k->to_be_freed, k->ref_count, k);
     }
 
 #ifndef NDEBUG

@@ -186,7 +186,6 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
     umf_result_t umf_result = UMF_RESULT_ERROR_UNKNOWN;
 
     tracker_alloc_info_t *value = umf_ba_alloc(hTracker->alloc_info_allocator);
-    fprintf(stderr, "%p umf_ba_alloc %s:%i\n", value, __FILE__, __LINE__);
     if (value == NULL) {
         LOG_ERR("failed to allocate a tracker value, ptr=%p, size=%zu", ptr,
                 size);
@@ -232,7 +231,6 @@ umfMemoryTrackerAddAtLevel(umf_memory_tracker_handle_t hTracker, int level,
         (void *)pool, ptr, size, ret);
 
     umf_ba_free(hTracker->alloc_info_allocator, value);
-    fprintf(stderr, "%p umf_ba_free %s:%i\n", value, __FILE__, __LINE__);
 
     return umf_result;
 }
@@ -405,7 +403,6 @@ umfMemoryTrackerAddIpcSegment(umf_memory_tracker_handle_t hTracker,
     assert(cache_entry);
 
     tracker_ipc_info_t *value = umf_ba_alloc(hTracker->ipc_info_allocator);
-    fprintf(stderr, "%p umf_ba_alloc %s:%i\n", value, __FILE__, __LINE__);
 
     if (value == NULL) {
         LOG_ERR("failed to allocate tracker_ipc_info_t, ptr=%p, size=%zu", ptr,
@@ -420,8 +417,6 @@ umfMemoryTrackerAddIpcSegment(umf_memory_tracker_handle_t hTracker,
     int ret =
         critnib_insert(hTracker->ipc_segments_map, (uintptr_t)ptr, value, 0);
     if (ret == 0) {
-        fprintf(stderr, "%p critnib_insert(value=%p) %s:%i\n", ptr, value,
-                __FILE__, __LINE__);
         LOG_DEBUG("IPC memory region is added, tracker=%p, ptr=%p, size=%zu, "
                   "provider=%p, cache_entry=%p",
                   (void *)hTracker, ptr, size, (void *)provider,
@@ -434,7 +429,6 @@ umfMemoryTrackerAddIpcSegment(umf_memory_tracker_handle_t hTracker,
             ret, ptr, size, (void *)provider, (void *)cache_entry);
 
     umf_ba_free(hTracker->ipc_info_allocator, value);
-    fprintf(stderr, "%p umf_ba_free %s:%i\n", value, __FILE__, __LINE__);
 
     if (ret == ENOMEM) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -451,12 +445,8 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
     void *ref_value = NULL;
     void *value =
         critnib_remove(hTracker->ipc_segments_map, (uintptr_t)ptr, &ref_value);
-    fprintf(stderr, "%p critnib_remove(ptr=%p, value=%p) %s:%i\n", ptr, ptr,
-            value, __FILE__, __LINE__);
     if (!value) {
         if (ref_value) {
-            fprintf(stderr, "%p critnib_release %s:%i NO VALUE!\n", ptr,
-                    __FILE__, __LINE__);
             critnib_release(hTracker->ipc_segments_map, ref_value);
         }
         LOG_ERR("pointer %p not found in the ipc_segments_map", ptr);
@@ -471,7 +461,6 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
               (void *)v->ipc_cache_value);
 
     assert(ref_value);
-    fprintf(stderr, "%p critnib_release %s:%i\n", ptr, __FILE__, __LINE__);
     critnib_release(hTracker->ipc_segments_map, ref_value);
 
     return UMF_RESULT_SUCCESS;
@@ -1387,14 +1376,12 @@ static void free_leaf(void *leaf_allocator, void *ptr) {
         utils_atomic_store_release_u64(&value->is_freed, 0xDEADBEEF);
 #endif
         umf_ba_free(leaf_allocator, ptr);
-        fprintf(stderr, "%p umf_ba_free %s:%i\n", ptr, __FILE__, __LINE__);
     }
 }
 
 static void free_ipc_segment(void *ipc_info_allocator, void *ptr) {
     if (ptr) {
         umf_ba_free(ipc_info_allocator, ptr);
-        fprintf(stderr, "%p umf_ba_free %s:%i\n", ptr, __FILE__, __LINE__);
     }
 }
 
