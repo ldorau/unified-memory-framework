@@ -285,7 +285,12 @@ static umf_result_t umfMemoryTrackerAdd(umf_memory_tracker_handle_t hTracker,
         // make sure rvalue is not freed
         uint64_t is_freed;
         utils_atomic_load_acquire_u64(&rvalue->is_freed, &is_freed);
-        assert(is_freed != 0xDEADBEEF);
+        if (is_freed == 0xDEADBEEF) {
+            fprintf(stderr,
+                    "WARNING: rvalue is freed, ptr=%p, rvalue=%p, rvalue->size=%zu, rvalue->pool=%p, rvalue->n_children=%zu\n",
+                    ptr, (void *)rvalue, rvalue->size, (void *)rvalue->pool, rvalue->n_children);
+            assert(is_freed != 0xDEADBEEF);
+        }
 #endif
 
         utils_atomic_load_acquire_u64((uint64_t *)&rvalue->size, &rsize);
