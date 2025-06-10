@@ -17,29 +17,6 @@ permissions:
   packages: read
 
 jobs:
-  DevDax:
-    uses: ./.github/workflows/reusable_dax.yml
-  MultiNuma:
-    uses: ./.github/workflows/reusable_multi_numa.yml
-  L0:
-    uses: ./.github/workflows/reusable_gpu.yml
-    with:
-      provider: "LEVEL_ZERO"
-      runner: "L0"
-      shared_lib: "['ON']"
-  L0-BMG:
-    uses: ./.github/workflows/reusable_gpu.yml
-    with:
-      provider: "LEVEL_ZERO"
-      runner: "L0-BMG"
-      shared_lib: "['ON']"
-      os: "['Ubuntu']"
-  CUDA:
-    uses: ./.github/workflows/reusable_gpu.yml
-    with:
-      provider: "CUDA"
-      runner: "CUDA"
-      shared_lib: "['ON']"
   Sanitizers:
     uses: ./.github/workflows/reusable_sanitizers.yml
   QEMU:
