@@ -74,6 +74,8 @@ umf_result_t umfIpcCacheGlobalInit(void) {
     umf_result_t ret = UMF_RESULT_SUCCESS;
     ipc_opened_cache_global_t *cache_global =
         umf_ba_global_alloc(sizeof(*cache_global));
+    fprintf(stderr, "%p umf_ba_global_alloc %s:%i\n", cache_global, __FILE__,
+            __LINE__);
     if (!cache_global) {
         LOG_ERR("Failed to allocate memory for the IPC cache global data");
         ret = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -104,6 +106,8 @@ umf_result_t umfIpcCacheGlobalInit(void) {
 err_mutex_destroy:
     utils_mutex_destroy_not_free(&(cache_global->cache_lock));
 err_cache_global_free:
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", cache_global, __FILE__,
+            __LINE__);
     umf_ba_global_free(cache_global);
 err_exit:
     return ret;
@@ -131,6 +135,8 @@ void umfIpcCacheGlobalTearDown(void) {
 
     umf_ba_destroy(cache_global->cache_allocator);
     utils_mutex_destroy_not_free(&(cache_global->cache_lock));
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", cache_global, __FILE__,
+            __LINE__);
     umf_ba_global_free(cache_global);
 }
 
@@ -142,6 +148,8 @@ umfIpcOpenedCacheCreate(ipc_opened_cache_eviction_cb_t eviction_cb) {
     }
 
     ipc_opened_cache_t *cache = umf_ba_global_alloc(sizeof(*cache));
+    fprintf(stderr, "%p umf_ba_global_alloc %s:%i\n", cache, __FILE__,
+            __LINE__);
 
     if (!cache) {
         LOG_ERR("Failed to allocate memory for the IPC cache");
@@ -167,12 +175,13 @@ void umfIpcOpenedCacheDestroy(ipc_opened_cache_handle_t cache) {
         cache->global->cur_size -= 1;
         cache->eviction_cb(&entry->key, &entry->value);
         utils_mutex_destroy_not_free(&(entry->value.mmap_lock));
-        umf_ba_free(cache->global->cache_allocator, entry);
         fprintf(stderr, "%p umf_ba_free %s:%i\n", entry, __FILE__, __LINE__);
+        umf_ba_free(cache->global->cache_allocator, entry);
     }
     HASH_CLEAR(hh, cache->hash_table);
     utils_mutex_unlock(&(cache->global->cache_lock));
 
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", cache, __FILE__, __LINE__);
     umf_ba_global_free(cache);
 }
 
@@ -242,6 +251,8 @@ umf_result_t umfIpcOpenedCacheGet(ipc_opened_cache_handle_t cache,
             }
             if (NULL == utils_mutex_init(&(entry->value.mmap_lock))) {
                 LOG_ERR("Failed to initialize mutex for the IPC cache entry");
+                fprintf(stderr, "%p umf_ba_global_free %s:%i\n", entry,
+                        __FILE__, __LINE__);
                 umf_ba_global_free(entry);
                 ret = UMF_RESULT_ERROR_UNKNOWN;
                 goto exit;

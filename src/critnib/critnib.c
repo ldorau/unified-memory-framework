@@ -624,7 +624,8 @@ int critnib_release(struct critnib *c, void *ref) {
             utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
             c->cb_free_leaf(c->leaf_allocator, to_be_freed);
         } else {
-            fprintf(stderr, "critnib_release: to_be_freed == NULL for key %p\n", (void *)k->key);
+            fprintf(stderr, "critnib_release: to_be_freed == NULL for key %p\n",
+                    (void *)k->key);
             assert(to_be_freed != NULL);
         }
 

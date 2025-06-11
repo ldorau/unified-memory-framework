@@ -927,6 +927,8 @@ static umf_result_t trackingFree(void *hProvider, void *ptr, size_t size) {
 static umf_result_t trackingInitialize(const void *params, void **ret) {
     umf_tracking_memory_provider_t *provider =
         umf_ba_global_alloc(sizeof(umf_tracking_memory_provider_t));
+    fprintf(stderr, "%p umf_ba_global_alloc %s:%i\n", provider, __FILE__,
+            __LINE__);
     if (!provider) {
         return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
@@ -1000,6 +1002,8 @@ static void trackingFinalize(void *provider) {
 
     critnib_delete(p->ipcCache);
 
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", provider, __FILE__,
+            __LINE__);
     umf_ba_global_free(provider);
 }
 
@@ -1085,6 +1089,8 @@ static umf_result_t trackingGetIpcHandle(void *provider, const void *ptr,
 
             size_t value_size = sizeof(ipc_cache_value_t) + ipcDataSize;
             cache_value = umf_ba_global_alloc(value_size);
+            fprintf(stderr, "%p umf_ba_global_alloc %s:%i\n", cache_value,
+                    __FILE__, __LINE__);
             if (!cache_value) {
                 LOG_ERR("failed to allocate cache_value");
                 return UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
@@ -1094,6 +1100,8 @@ static umf_result_t trackingGetIpcHandle(void *provider, const void *ptr,
                                                 cache_value->providerIpcData);
             if (ret != UMF_RESULT_SUCCESS) {
                 LOG_ERR("upstream provider failed to get IPC handle");
+                fprintf(stderr, "%p umf_ba_global_free %s:%i\n", cache_value,
+                        __FILE__, __LINE__);
                 umf_ba_global_free(cache_value);
                 return ret;
             }
@@ -1117,6 +1125,8 @@ static umf_result_t trackingGetIpcHandle(void *provider, const void *ptr,
                 //    to cleanup and return corresponding error.
                 ret = umfMemoryProviderPutIPCHandle(
                     p->hUpstream, cache_value->providerIpcData);
+                fprintf(stderr, "%p umf_ba_global_free %s:%i\n", cache_value,
+                        __FILE__, __LINE__);
                 umf_ba_global_free(cache_value);
                 if (ret != UMF_RESULT_SUCCESS) {
                     LOG_ERR("upstream provider failed to put IPC handle");
@@ -1321,6 +1331,8 @@ umf_memory_provider_ops_t UMF_TRACKING_MEMORY_PROVIDER_OPS = {
 static void free_ipc_cache_value(void *unused, void *ipc_cache_value) {
     (void)unused;
     if (ipc_cache_value) {
+        fprintf(stderr, "%p umf_ba_global_free %s:%i\n", ipc_cache_value,
+                __FILE__, __LINE__);
         umf_ba_global_free(ipc_cache_value);
     }
 }
@@ -1386,6 +1398,8 @@ static void free_ipc_segment(void *ipc_info_allocator, void *ptr) {
 umf_memory_tracker_handle_t umfMemoryTrackerCreate(void) {
     umf_memory_tracker_handle_t handle =
         umf_ba_global_alloc(sizeof(struct umf_memory_tracker_t));
+    fprintf(stderr, "%p umf_ba_global_alloc %s:%i\n", handle, __FILE__,
+            __LINE__);
     if (!handle) {
         return NULL;
     }
@@ -1443,6 +1457,8 @@ err_destroy_alloc_segments_map:
 err_destroy_alloc_info_allocator:
     umf_ba_destroy(alloc_info_allocator);
 err_free_handle:
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", handle, __FILE__,
+            __LINE__);
     umf_ba_global_free(handle);
     return NULL;
 }
@@ -1479,5 +1495,7 @@ void umfMemoryTrackerDestroy(umf_memory_tracker_handle_t handle) {
     handle->ipc_segments_map = NULL;
     umf_ba_destroy(handle->ipc_info_allocator);
     handle->ipc_info_allocator = NULL;
+    fprintf(stderr, "%p umf_ba_global_free %s:%i\n", handle, __FILE__,
+            __LINE__);
     umf_ba_global_free(handle);
 }
