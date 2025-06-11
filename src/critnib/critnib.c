@@ -615,6 +615,9 @@ int critnib_release(struct critnib *c, void *ref) {
         if (to_be_freed) {
             utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
             c->cb_free_leaf(c->leaf_allocator, to_be_freed);
+        } else {
+            fprintf(stderr, "critnib_release: to_be_freed == NULL for key %p\n", (void *)k->key);
+            assert(to_be_freed != NULL);
         }
         uint8_t pending_deleted_leaf;
         utils_atomic_load_acquire_u8(&k->pending_deleted_leaf,
