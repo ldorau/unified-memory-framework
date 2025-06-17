@@ -36,7 +36,8 @@ void *utils_open_library(const char *filename, int userFlags) {
     if (userFlags & UMF_UTIL_OPEN_LIBRARY_NO_LOAD) {
         HMODULE hModule;
         // BOOL ret = GetModuleHandleEx(0, TEXT(filename), &hModule);
-        BOOL ret = GetModuleHandleExA(0, filename, &hModule); // *A -> do not use wide string
+        BOOL ret = GetModuleHandleExA(0, filename,
+                                      &hModule); // *A -> do not use wide string
         return ret ? hModule : NULL;
     }
     // return LoadLibrary(TEXT(filename));

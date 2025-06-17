@@ -227,7 +227,7 @@ function(add_umf_target_compile_options name)
     check_add_target_compile_options(${name} "-Wno-covered-switch-default")
     target_compile_definitions(${name}
                                PRIVATE ${UMF_COMMON_COMPILE_DEFINITIONS})
-    if(NOT MSVC)
+    if(NOT WINDOWS)
         target_compile_options(
             ${name}
             PRIVATE -fPIC
@@ -265,7 +265,7 @@ function(add_umf_target_compile_options name)
             target_compile_definitions(${name} PRIVATE "UMF_VG_ENABLED=1")
             target_include_directories(${name} PRIVATE ${VALGRIND_INCLUDE_DIRS})
         endif()
-    elseif(MSVC)
+    elseif(WINDOWS)
         target_compile_options(
             ${name}
             PRIVATE /MD$<$<CONFIG:Debug>:d>
