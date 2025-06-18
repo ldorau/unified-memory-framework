@@ -11,10 +11,14 @@ list(APPEND CMAKE_MODULE_PATH "${UMF_EXAMPLE_DIR}/cmake")
 message(STATUS "CMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}")
 
 find_package(PkgConfig)
-pkg_check_modules(LIBUMF libumf)
-if(NOT LIBUMF_FOUND)
-    find_package(LIBUMF REQUIRED libumf)
-endif()
+
+# pkg_check_modules(UMF libumf)
+# if(NOT UMF_FOUND)
+#     find_package(UMF REQUIRED libumf)
+# endif()
+
+include("find_umf.cmake")
+set(UMF_LIBRARIES umf::umf umf::headers)
 
 pkg_check_modules(LIBHWLOC hwloc>=2.3.0)
 if(NOT LIBHWLOC_FOUND)
@@ -27,7 +31,7 @@ if(NOT ZE_LOADER_FOUND)
 endif()
 
 set(EXAMPLE_NAME umf_example_level_zero_shared_memory)
-set(LEVEL_ZERO_SM_LIBRARY_DIRS ${LIBUMF_LIBRARY_DIRS} ${LIBHWLOC_LIBRARY_DIRS}
+set(LEVEL_ZERO_SM_LIBRARY_DIRS ${UMF_LIBRARY_DIRS} ${LIBHWLOC_LIBRARY_DIRS}
                                ${ZE_LOADER_LIBRARY_DIRS})
 
 # build the example
@@ -36,12 +40,14 @@ add_executable(
                     ${UMF_EXAMPLE_DIR}/common/examples_level_zero_helpers.c)
 
 target_include_directories(
-    ${EXAMPLE_NAME} PRIVATE ${LIBUMF_INCLUDE_DIRS} ${ZE_LOADER_INCLUDE_DIRS}
+    ${EXAMPLE_NAME} PRIVATE ${UMF_INCLUDE_DIRS} ${ZE_LOADER_INCLUDE_DIRS}
                             ${UMF_EXAMPLE_DIR}/common)
 target_link_directories(${EXAMPLE_NAME} PRIVATE ${LEVEL_ZERO_SM_LIBRARY_DIRS})
 target_link_options(${EXAMPLE_NAME} PRIVATE "-Wl,--start-group")
-target_link_libraries(${EXAMPLE_NAME} PRIVATE stdc++ ze_loader
-                                              ${LIBUMF_LIBRARIES})
+target_link_libraries(${EXAMPLE_NAME} PRIVATE ze_loader ${UMF_LIBRARIES})
+if(LINUX)
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE stdc++)
+endif()
 target_link_options(${EXAMPLE_NAME} PRIVATE "-Wl,--end-group")
 
 # an optional part - adds a test of this example
