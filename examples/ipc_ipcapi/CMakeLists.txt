@@ -11,10 +11,9 @@ list(APPEND CMAKE_MODULE_PATH "${UMF_EXAMPLE_DIR}/cmake")
 message(STATUS "CMAKE_MODULE_PATH=${CMAKE_MODULE_PATH}")
 
 find_package(PkgConfig)
-pkg_check_modules(LIBUMF libumf)
-if(NOT LIBUMF_FOUND)
-    find_package(LIBUMF REQUIRED libumf)
-endif()
+
+include("find_umf.cmake")
+set(UMF_LIBRARIES umf::umf umf::headers)
 
 pkg_check_modules(LIBHWLOC hwloc>=2.3.0)
 if(NOT LIBHWLOC_FOUND)
@@ -34,9 +33,9 @@ function(build_umf_ipc_example name)
     foreach(loop_var IN ITEMS "producer" "consumer")
         set(EX_NAME ${EXAMPLE_NAME}_${loop_var})
         add_executable(${EX_NAME} ${BASE_NAME}_${loop_var}.c)
-        target_include_directories(${EX_NAME} PRIVATE ${LIBUMF_INCLUDE_DIRS})
+        target_include_directories(${EX_NAME} PRIVATE ${UMF_INCLUDE_DIRS})
         target_link_directories(${EX_NAME} PRIVATE ${LIBHWLOC_LIBRARY_DIRS})
-        target_link_libraries(${EX_NAME} PRIVATE ${LIBUMF_LIBRARIES} hwloc)
+        target_link_libraries(${EX_NAME} PRIVATE ${UMF_LIBRARIES} hwloc)
     endforeach(loop_var)
 endfunction()
 
@@ -57,7 +56,7 @@ function(add_test_for_umf_ipc_example script)
             TEST ${EXAMPLE_NAME}
             PROPERTY
                 ENVIRONMENT_MODIFICATION
-                "LD_LIBRARY_PATH=path_list_append:${LIBUMF_LIBRARY_DIRS};LD_LIBRARY_PATH=path_list_append:${LIBHWLOC_LIBRARY_DIRS}"
+                "LD_LIBRARY_PATH=path_list_append:${UMF_LIBRARY_DIRS};LD_LIBRARY_PATH=path_list_append:${LIBHWLOC_LIBRARY_DIRS}"
         )
     endif()
 
