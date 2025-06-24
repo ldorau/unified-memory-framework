@@ -411,6 +411,11 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
         utils_atomic_store_release_u64(&k->ref_count, 0ULL);
     }
 
+    fprintf(
+        stderr,
+        "critnib_insert(): ref_count == 2 for: ref_value=%p ptr=%p value=%p\n",
+        k, (void *)key, (void *)value);
+
     struct critnib_node *kn = (void *)((word)k | 1);
 
     struct critnib_node *n = c->root;
@@ -592,6 +597,12 @@ void *critnib_remove(struct critnib *c, word key, void **ref) {
 del_leaf:
     value = k->value;
     if (c->cb_free_leaf) {
+        if (value == NULL) {
+            fprintf(stderr,
+                   "critnib_remove(): value == NULL (ptr = %llu, ref = %p, k->to_be_freed = %p)\n",
+                   (unsigned long long)key, k, k->to_be_freed);
+            assert(value != NULL);
+        }
         utils_atomic_store_release_ptr(&k->to_be_freed, value);
         utils_atomic_store_release_ptr(&k->value, NULL);
         *ref = k;
@@ -615,16 +626,20 @@ int critnib_release(struct critnib *c, void *ref) {
 
     uint64_t ref_count;
     uint64_t ref_desired;
+
+    // utils_mutex_lock(&c->mutex);
+
     /* decrement the reference count */
     utils_atomic_load_acquire_u64(&k->ref_count, &ref_count);
     do {
         if (ref_count < LEAF_VALID) {
 #ifndef NDEBUG
             LOG_FATAL("critnib_release() was called too many times (ref_count "
-                      "= %llu)\n",
-                      (unsigned long long)ref_count);
+                      "= %llu), ref = %p\n",
+                      (unsigned long long)ref_count, ref);
             assert(ref_count >= LEAF_VALID);
 #endif
+            // utils_mutex_unlock(&c->mutex);
             return -1;
         }
         ref_desired = ref_count - 1;
@@ -633,23 +648,30 @@ int critnib_release(struct critnib *c, void *ref) {
 
     if (ref_desired >= LEAF_VALID) {
         // ref_counter was decremented and it is still valid
+        // utils_mutex_unlock(&c->mutex);
         return 0;
     }
 
     /* ref_counter == (LEAF_VALID - 1)) - the leaf will be freed */
+    assert(ref_desired == (LEAF_VALID - 1));
     void *to_be_freed = NULL;
     utils_atomic_load_acquire_ptr(&k->to_be_freed, &to_be_freed);
     utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
 #ifndef NDEBUG
     if (to_be_freed == NULL) {
-        LOG_FATAL("leaf will not be freed (to_be_freed == NULL, value = %p)\n",
-                  k->value);
+        LOG_FATAL("leaf will not be freed (to_be_freed == NULL, ref = %p, value = %p)\n", ref, k->value);
         assert(to_be_freed != NULL);
     }
 #endif
 
     // mark the leaf as not used (ref_count == 0)
     utils_atomic_store_release_u64(&k->ref_count, 0ULL);
+    // utils_mutex_unlock(&c->mutex);
+
+    fprintf(
+        stderr,
+        "critnib_release(): ref_count == 0 for: ref_value=%p ptr=%p value=%p - free(to_be_freed=%p)\n",
+        ref, (void *)k->key, (void *)k->value, (void *)to_be_freed);
 
     c->cb_free_leaf(c->leaf_allocator, to_be_freed);
 
