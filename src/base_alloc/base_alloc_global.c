@@ -40,6 +40,10 @@ struct base_alloc_t {
 
 static struct base_alloc_t BASE_ALLOC = {.ac_sizes = ALLOCATION_CLASSES};
 
+#ifndef NDEBUG
+uint64_t n_ba_os_allocs = 0;
+#endif /* NDEBUG */
+
 void umf_ba_destroy_global(void) {
     LOG_DEBUG("destroying global base allocator");
     ba_is_destroyed = true;
@@ -50,6 +54,24 @@ void umf_ba_destroy_global(void) {
             BASE_ALLOC.ac[i] = NULL;
         }
     }
+
+#ifndef NDEBUG
+    if (n_ba_os_allocs) {
+#ifdef UMF_DEVELOPER_MODE
+        LOG_FATAL("number of global base allocator memory leaks "
+                  "(n_ba_os_allocs): %zu",
+                  n_ba_os_allocs);
+        assert(
+            n_ba_os_allocs == 0 &&
+            "memory leaks in global base allocator occurred (n_ba_os_allocs)");
+#else
+        LOG_ERR("number of global base allocator memory leaks "
+                "(n_ba_os_allocs): %zu",
+                n_ba_os_allocs);
+#endif
+        n_ba_os_allocs = 0; // reset the counter
+    }
+#endif /* NDEBUG */
 
     // portable version of "ba_is_initialized = UTIL_ONCE_FLAG_INIT;"
     static UTIL_ONCE_FLAG set_once = UTIL_ONCE_FLAG_INIT;
@@ -190,6 +212,9 @@ void *umf_ba_global_aligned_alloc(size_t size, size_t alignment) {
         if (!ptr) {
             return NULL;
         }
+#ifndef NDEBUG
+        utils_atomic_increment_u64(&n_ba_os_allocs);
+#endif /* NDEBUG */
         VALGRIND_DO_MALLOCLIKE_BLOCK(ptr, size, 0, 0);
         return add_metadata_and_align(ptr, size, alignment);
     }
@@ -202,6 +227,9 @@ void *umf_ba_global_aligned_alloc(size_t size, size_t alignment) {
         if (!ptr) {
             return NULL;
         }
+#ifndef NDEBUG
+        utils_atomic_increment_u64(&n_ba_os_allocs);
+#endif /* NDEBUG */
         VALGRIND_DO_MALLOCLIKE_BLOCK(ptr, size, 0, 0);
         return add_metadata_and_align(ptr, size, alignment);
     }
@@ -230,6 +258,9 @@ void umf_ba_global_free(void *ptr) {
 
     int ac_index = size_to_idx(total_size);
     if (ac_index >= NUM_ALLOCATION_CLASSES) {
+#ifndef NDEBUG
+        utils_atomic_decrement_u64(&n_ba_os_allocs);
+#endif /* NDEBUG */
         VALGRIND_DO_FREELIKE_BLOCK(ptr, 0);
         ba_os_free(ptr, total_size);
         return;
@@ -237,6 +268,9 @@ void umf_ba_global_free(void *ptr) {
 
     if (!BASE_ALLOC.ac[ac_index]) {
         // if creating ac failed, memory must have been allocated by os
+#ifndef NDEBUG
+        utils_atomic_decrement_u64(&n_ba_os_allocs);
+#endif /* NDEBUG */
         VALGRIND_DO_FREELIKE_BLOCK(ptr, 0);
         ba_os_free(ptr, total_size);
         return;
