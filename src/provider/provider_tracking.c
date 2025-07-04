@@ -440,14 +440,15 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
     void *ref_value = NULL;
     void *value =
         critnib_remove(hTracker->ipc_segments_map, (uintptr_t)ptr, &ref_value);
-    fprintf(
-        stderr,
-        "umfMemoryTrackerRemoveIpcSegment(): critnib_remove(): ref_value=%p ptr=%p value=%p\n",
-        ref_value, ptr, value);
     if (!value) {
         LOG_ERR("pointer %p not found in the ipc_segments_map", ptr);
         return UMF_RESULT_ERROR_UNKNOWN;
     }
+
+    fprintf(stderr,
+            "umfMemoryTrackerRemoveIpcSegment(): critnib_remove(): "
+            "ref_value=%p ptr=%p value=%p\n",
+            ref_value, ptr, value);
 
     tracker_ipc_info_t *v = value;
 
@@ -457,10 +458,10 @@ umfMemoryTrackerRemoveIpcSegment(umf_memory_tracker_handle_t hTracker,
               (void *)v->ipc_cache_value);
 
     assert(ref_value);
-    fprintf(
-        stderr,
-        "umfMemoryTrackerRemoveIpcSegment(): critnib_release(): ref_value=%p ptr=%p value=%p\n",
-        ref_value, ptr, value);
+    fprintf(stderr,
+            "umfMemoryTrackerRemoveIpcSegment(): critnib_release(): "
+            "ref_value=%p ptr=%p value=%p\n",
+            ref_value, ptr, value);
     critnib_release(hTracker->ipc_segments_map, ref_value);
 
     return UMF_RESULT_SUCCESS;
@@ -614,10 +615,10 @@ umf_result_t umfMemoryTrackerGetIpcInfo(const void *ptr,
     pIpcInfo->provider = rvalue->provider;
 
     if (ref_value) {
-        fprintf(
-            stderr,
-            "umfMemoryTrackerGetIpcInfo(#2): critnib_release(): ref_value=%p ptr=%p value=%p\n",
-            ref_value, (void *)rkey, (void *)rvalue);
+        fprintf(stderr,
+                "umfMemoryTrackerGetIpcInfo(#2): critnib_release(): "
+                "ref_value=%p ptr=%p value=%p\n",
+                ref_value, (void *)rkey, (void *)rvalue);
         critnib_release(TRACKER->ipc_segments_map, ref_value);
     }
 
@@ -1308,10 +1309,10 @@ static umf_result_t trackingCloseIpcHandle(void *provider, void *ptr,
         umfIpcHandleMappedCacheRelease(trackerIpcInfo->ipc_cache_value);
 
     assert(ref_value);
-    fprintf(
-        stderr,
-        "trackingCloseIpcHandle(): critnib_release(): ref_value=%p ptr=%p value=%p\n",
-        ref_value, ptr, trackerIpcInfo);
+    fprintf(stderr,
+            "trackingCloseIpcHandle(): critnib_release(): ref_value=%p ptr=%p "
+            "value=%p\n",
+            ref_value, ptr, trackerIpcInfo);
     critnib_release(TRACKER->ipc_segments_map, ref_value);
 
     return umf_result;

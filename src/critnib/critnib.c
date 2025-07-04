@@ -119,6 +119,7 @@ struct critnib_node {
 struct critnib_leaf {
     word key;
     void *value;
+    void *next;
     /*
      * When cb_free_leaf() is set (values of leaves should be freed),
      * critnib_remove() sets 'to_be_freed' to the 'value' of the leaf
@@ -253,7 +254,7 @@ void critnib_delete(struct critnib *c) {
     }
 
     for (struct critnib_leaf *k = c->deleted_leaf; k;) {
-        struct critnib_leaf *kk = k->value;
+        struct critnib_leaf *kk = k->next;
         umf_ba_global_free(k);
         k = kk;
     }
@@ -317,9 +318,9 @@ static void add_to_deleted_leaf_list(struct critnib *__restrict c,
 
     utils_atomic_load_acquire_ptr((void **)&c->deleted_leaf,
                                   (void **)&deleted_leaf);
-    utils_atomic_store_release_ptr(&k->value, deleted_leaf);
+    utils_atomic_store_release_ptr(&k->next, deleted_leaf);
     while (!utils_compare_exchange_u64((uint64_t *)&c->deleted_leaf,
-                                       (uint64_t *)&k->value, (uint64_t *)&k)) {
+                                       (uint64_t *)&k->next, (uint64_t *)&k)) {
         ;
     }
 }
@@ -368,8 +369,8 @@ static struct critnib_leaf *alloc_leaf(struct critnib *__restrict c) {
         if (!k) {
             return umf_ba_global_aligned_alloc(sizeof(struct critnib_leaf), 8);
         }
-    } while (!utils_compare_exchange_u64(
-        (uint64_t *)&c->deleted_leaf, (uint64_t *)&k, (uint64_t *)&k->value));
+    } while (!utils_compare_exchange_u64((uint64_t *)&c->deleted_leaf,
+                                         (uint64_t *)&k, (uint64_t *)&k->next));
 
     utils_annotate_memory_new(k, sizeof(*k));
 
@@ -599,8 +600,9 @@ del_leaf:
     if (c->cb_free_leaf) {
         if (value == NULL) {
             fprintf(stderr,
-                   "critnib_remove(): value == NULL (ptr = %llu, ref = %p, k->to_be_freed = %p)\n",
-                   (unsigned long long)key, k, k->to_be_freed);
+                    "critnib_remove(): value == NULL (ptr = %llu, ref = %p, "
+                    "k->to_be_freed = %p)\n",
+                    (unsigned long long)key, k, k->to_be_freed);
             assert(value != NULL);
         }
         utils_atomic_store_release_ptr(&k->to_be_freed, value);
@@ -659,7 +661,9 @@ int critnib_release(struct critnib *c, void *ref) {
     utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
 #ifndef NDEBUG
     if (to_be_freed == NULL) {
-        LOG_FATAL("leaf will not be freed (to_be_freed == NULL, ref = %p, value = %p)\n", ref, k->value);
+        LOG_FATAL("leaf will not be freed (to_be_freed == NULL, ref = %p, "
+                  "value = %p)\n",
+                  ref, k->value);
         assert(to_be_freed != NULL);
     }
 #endif
@@ -668,10 +672,10 @@ int critnib_release(struct critnib *c, void *ref) {
     utils_atomic_store_release_u64(&k->ref_count, 0ULL);
     // utils_mutex_unlock(&c->mutex);
 
-    fprintf(
-        stderr,
-        "critnib_release(): ref_count == 0 for: ref_value=%p ptr=%p value=%p - free(to_be_freed=%p)\n",
-        ref, (void *)k->key, (void *)k->value, (void *)to_be_freed);
+    fprintf(stderr,
+            "critnib_release(): ref_count == 0 for: ref_value=%p ptr=%p "
+            "value=%p - free(to_be_freed=%p)\n",
+            ref, (void *)k->key, (void *)k->value, (void *)to_be_freed);
 
     c->cb_free_leaf(c->leaf_allocator, to_be_freed);
 
