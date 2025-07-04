@@ -315,6 +315,16 @@ static void add_to_deleted_leaf_list(struct critnib *__restrict c,
     assert(k);
     struct critnib_leaf *deleted_leaf;
 
+    if (k->ref_count) {
+        fprintf(
+            stderr,
+            "add_to_deleted_leaf_list(): ref_count == %lu !!! for: ref_value=%p ptr=%p value=%p to_be_freed=%p\n",
+            k->ref_count, k, (void *)k->key, (void *)k->value, k->to_be_freed);
+        assert(k->ref_count == 0);
+    }
+
+    utils_atomic_store_release_ptr((void **)&k->key, NULL);
+
     utils_atomic_load_acquire_ptr((void **)&c->deleted_leaf,
                                   (void **)&deleted_leaf);
     utils_atomic_store_release_ptr(&k->value, deleted_leaf);
@@ -456,11 +466,12 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
     word at = path ^ key;
     if (!at) {
         ASSERT(is_leaf(n));
+        struct critnib_leaf *kn_leaf = to_leaf(kn);
         if (c->cb_free_leaf) {
             // mark the leaf as not used (ref_count == 0)
-            utils_atomic_store_release_u64(&(to_leaf(kn))->ref_count, 0ULL);
+            utils_atomic_store_release_u64(&kn_leaf->ref_count, 0ULL);
         }
-        free_leaf(c, to_leaf(kn));
+        free_leaf(c, kn_leaf);
 
         if (update) {
             utils_atomic_store_release_ptr(&to_leaf(n)->value, value);
@@ -477,11 +488,12 @@ int critnib_insert(struct critnib *c, word key, void *value, int update) {
 
     struct critnib_node *m = alloc_node(c);
     if (!m) {
+        struct critnib_leaf *kn_leaf = to_leaf(kn);
         if (c->cb_free_leaf) {
             // mark the leaf as not used (ref_count == 0)
-            utils_atomic_store_release_u64(&(to_leaf(kn))->ref_count, 0ULL);
+            utils_atomic_store_release_u64(&kn_leaf->ref_count, 0ULL);
         }
-        free_leaf(c, to_leaf(kn));
+        free_leaf(c, kn_leaf);
         utils_mutex_unlock(&c->mutex);
         return ENOMEM;
     }
@@ -654,6 +666,7 @@ int critnib_release(struct critnib *c, void *ref) {
 
     /* ref_counter == (LEAF_VALID - 1)) - the leaf will be freed */
     assert(ref_desired == (LEAF_VALID - 1));
+    assert(k->ref_count == (LEAF_VALID - 1));
     void *to_be_freed = NULL;
     utils_atomic_load_acquire_ptr(&k->to_be_freed, &to_be_freed);
     utils_atomic_store_release_ptr(&k->to_be_freed, NULL);
@@ -664,14 +677,14 @@ int critnib_release(struct critnib *c, void *ref) {
     }
 #endif
 
-    // mark the leaf as not used (ref_count == 0)
-    utils_atomic_store_release_u64(&k->ref_count, 0ULL);
-    // utils_mutex_unlock(&c->mutex);
-
     fprintf(
         stderr,
         "critnib_release(): ref_count == 0 for: ref_value=%p ptr=%p value=%p - free(to_be_freed=%p)\n",
         ref, (void *)k->key, (void *)k->value, (void *)to_be_freed);
+
+    // mark the leaf as not used (ref_count == 0)
+    utils_atomic_store_release_u64(&k->ref_count, 0ULL);
+    // utils_mutex_unlock(&c->mutex);
 
     c->cb_free_leaf(c->leaf_allocator, to_be_freed);
 
