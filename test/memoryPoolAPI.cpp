@@ -12,7 +12,9 @@
 
 #include <umf/memory_provider.h>
 #include <umf/pools/pool_disjoint.h>
+#include <umf/pools/pool_jemalloc.h>
 #include <umf/pools/pool_proxy.h>
+#include <umf/pools/pool_scalable.h>
 
 #ifdef UMF_POOL_JEMALLOC_ENABLED
 #include <umf/pools/pool_jemalloc.h>
@@ -341,6 +343,14 @@ INSTANTIATE_TEST_SUITE_P(
                             defaultDisjointPoolConfigDestroy,
                             &BA_GLOBAL_PROVIDER_OPS, nullptr, nullptr}),
     poolCreateExtParamsNameGen);
+
+#ifdef UMF_POOL_SCALABLE_ENABLED
+INSTANTIATE_TEST_SUITE_P(mallocPoolTestScalable, umfPoolTest,
+                         ::testing::Values(poolCreateExtParams{
+                             umfScalablePoolOps(), nullptr, nullptr,
+                             &BA_GLOBAL_PROVIDER_OPS, nullptr, nullptr}),
+                         poolCreateExtParamsNameGen);
+#endif
 
 INSTANTIATE_TEST_SUITE_P(mallocMultiPoolTest, umfMultiPoolTest,
                          ::testing::Values(poolCreateExtParams{
