@@ -754,6 +754,7 @@ static umf_result_t ze_memory_provider_allocation_split(void *provider,
 typedef struct ze_ipc_data_t {
     int pid;
     ze_ipc_mem_handle_t ze_handle;
+    uint64_t id;
 } ze_ipc_data_t;
 
 static umf_result_t ze_memory_provider_get_ipc_handle_size(void *provider,
@@ -775,6 +776,8 @@ static umf_result_t ze_memory_provider_get_ipc_handle(void *provider,
     struct ze_memory_provider_t *ze_provider =
         (struct ze_memory_provider_t *)provider;
 
+    static uint64_t id = 0;
+
     ze_result = g_ze_ops.zeMemGetIpcHandle(ze_provider->context, ptr,
                                            &ze_ipc_data->ze_handle);
     if (ze_result != ZE_RESULT_SUCCESS) {
@@ -783,6 +786,7 @@ static umf_result_t ze_memory_provider_get_ipc_handle(void *provider,
     }
 
     ze_ipc_data->pid = utils_getpid();
+    ze_ipc_data->id = id++;
 
     return UMF_RESULT_SUCCESS;
 }
@@ -801,8 +805,14 @@ static umf_result_t ze_memory_provider_put_ipc_handle(void *provider,
         return UMF_RESULT_SUCCESS;
     }
 
+    LOG_DEBUG("g_ze_ops.zeMemPutIpcHandle(): BEFORE putting IPC handle for PID "
+              "%d, ID %lu",
+              ze_ipc_data->pid, ze_ipc_data->id);
     ze_result = g_ze_ops.zeMemPutIpcHandle(ze_provider->context,
                                            ze_ipc_data->ze_handle);
+    LOG_DEBUG("g_ze_ops.zeMemPutIpcHandle(): AFTER putting IPC handle for PID "
+              "%d, ID %lu",
+              ze_ipc_data->pid, ze_ipc_data->id);
     if (ze_result != ZE_RESULT_SUCCESS) {
         LOG_ERR("zeMemPutIpcHandle() failed.");
         return ze2umf_result(ze_result);
