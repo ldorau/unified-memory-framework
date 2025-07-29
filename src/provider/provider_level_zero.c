@@ -801,8 +801,14 @@ static umf_result_t ze_memory_provider_put_ipc_handle(void *provider,
         return UMF_RESULT_SUCCESS;
     }
 
+    LOG_DEBUG("g_ze_ops.zeMemPutIpcHandle(): BEFORE putting IPC handle for PID "
+              "%d, ID %lu",
+              ze_ipc_data->pid, (long unsigned int)ze_ipc_data->pid);
     ze_result = g_ze_ops.zeMemPutIpcHandle(ze_provider->context,
                                            ze_ipc_data->ze_handle);
+    LOG_DEBUG("g_ze_ops.zeMemPutIpcHandle(): AFTER putting IPC handle for PID "
+              "%d, ID %lu",
+              ze_ipc_data->pid, (long unsigned int)ze_ipc_data->pid);
     if (ze_result != ZE_RESULT_SUCCESS) {
         LOG_ERR("zeMemPutIpcHandle() failed.");
         return ze2umf_result(ze_result);

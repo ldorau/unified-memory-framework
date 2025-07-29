@@ -129,8 +129,8 @@ jobs:
 
       - name: Run tests (Debug)
         working-directory: ${{env.BUILD_DEBUG_DIR}}
-        # run: for i in {1..100}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ./test/test_provider_level_zero_dlopen_global || exit 1; date; done
-        run: for i in {1..100}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ctest -V -R provider_level_zero || exit 1; date; done
+        # run: for i in {1..100}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ctest -V -R provider_level_zero || exit 1; date; done
+        run: for i in {1..1000}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ./test/test_provider_level_zero || exit 1; date; done
 
       - name: Configure build (RelWithDebInfo)
         run: >
@@ -160,5 +160,9 @@ jobs:
 
       - name: Run tests (RelWithDebInfo)
         working-directory: ${{env.BUILD_RELEASE_DIR}}
-        # run: for i in {1..1000}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ./test/test_provider_level_zero_dlopen_global || exit 1; date; done
-        run: for i in {1..1000}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ctest -V -R provider_level_zero || exit 1; date; done
+        # run: for i in {1..1000}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ctest -V -R provider_level_zero || exit 1; date; done
+        run: for i in {1..1000}; do echo ">>> ITERATION no. ${i}" ; UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ./test/test_provider_level_zero || exit 1; date; done
+
+# NAME test_provider_level_zero
+# NAME test_provider_level_zero_dlopen_global
+# NAME test_provider_level_zero_dlopen_local
