@@ -261,6 +261,9 @@ struct umfIpcTest : umf_test::test,
     }
 
     void concurrentGetPutHandles(bool shuffle) {
+        fprintf(stderr, "concurrentGetPutHandles shuffle=%d\n", shuffle);
+        abort();
+
         std::vector<void *> ptrs;
         constexpr size_t ALLOC_SIZE = 100;
         constexpr size_t NUM_POINTERS = 100;
