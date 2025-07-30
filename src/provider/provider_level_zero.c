@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #include <umf.h>
@@ -754,7 +755,19 @@ static umf_result_t ze_memory_provider_allocation_split(void *provider,
 typedef struct ze_ipc_data_t {
     int pid;
     ze_ipc_mem_handle_t ze_handle;
+    uint64_t checksum;
 } ze_ipc_data_t;
+
+// Compute a simple checksum of the ze_handle field in ze_ipc_data_t
+static uint64_t ze_ipc_handle_checksum(const ze_ipc_data_t *ipc_data) {
+    // Interpret the ze_handle as a byte array
+    const uint8_t *bytes = (const uint8_t *)&ipc_data->ze_handle;
+    uint64_t checksum = 0;
+    for (size_t i = 0; i < sizeof(ipc_data->ze_handle); ++i) {
+        checksum += bytes[i];
+    }
+    return checksum;
+}
 
 static umf_result_t ze_memory_provider_get_ipc_handle_size(void *provider,
                                                            size_t *size) {
@@ -783,6 +796,7 @@ static umf_result_t ze_memory_provider_get_ipc_handle(void *provider,
     }
 
     ze_ipc_data->pid = utils_getpid();
+    ze_ipc_data->checksum = ze_ipc_handle_checksum(ze_ipc_data);
 
     return UMF_RESULT_SUCCESS;
 }
@@ -793,6 +807,13 @@ static umf_result_t ze_memory_provider_put_ipc_handle(void *provider,
     struct ze_memory_provider_t *ze_provider =
         (struct ze_memory_provider_t *)provider;
     ze_ipc_data_t *ze_ipc_data = (ze_ipc_data_t *)providerIpcData;
+
+    if (ze_ipc_data->checksum != ze_ipc_handle_checksum(ze_ipc_data)) {
+        LOG_FATAL("Checksum mismatch for IPC handle data.");
+        return UMF_RESULT_ERROR_INVALID_ARGUMENT;
+    } else {
+        LOG_DEBUG("Checksum match for IPC handle data.");
+    }
 
     if (g_ze_ops.zeMemPutIpcHandle == NULL) {
         // g_ze_ops.zeMemPutIpcHandle can be NULL because it was introduced
