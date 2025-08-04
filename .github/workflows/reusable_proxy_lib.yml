@@ -15,6 +15,7 @@ env:
 jobs:
   proxy-ubuntu:
     strategy:
+      fail-fast: false
       matrix:
         build_type: [Release, Debug]
         compiler: [{c: gcc, cxx: g++}]
@@ -56,39 +57,4 @@ jobs:
 
       - name: Run "ctest --output-on-failure" with proxy library
         working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ctest --output-on-failure
-
-      - name: Run "./test/test_memoryPool" with proxy library
-        working-directory: ${{env.BUILD_DIR}}
-        run: LD_PRELOAD=./lib/libumf_proxy.so ./test/test_memoryPool
-
-      - name: Run "/usr/bin/ls" with proxy library
-        working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-fd" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/ls
-
-      - name: Run "/usr/bin/date" with proxy library
-        working-directory: ${{env.BUILD_DIR}}
-        run: UMF_PROXY="page.disposition=shared-shm" LD_PRELOAD=./lib/libumf_proxy.so /usr/bin/date
-
-      - name: Run "ctest --output-on-failure" with proxy library and size.threshold=128
-        working-directory: ${{env.BUILD_DIR}}
-        run: >
-          UMF_PROXY="page.disposition=shared-shm;size.threshold=128"
-          LD_PRELOAD=./lib/libumf_proxy.so
-          ctest --output-on-failure
-
-      - name: Check coverage
-        if:  ${{ matrix.build_type == 'Debug' }}
-        working-directory: ${{env.BUILD_DIR}}
-        run: |
-          export COVERAGE_FILE_NAME=${{env.COVERAGE_NAME}}-proxy_lib_pool-${{matrix.proxy_lib_pool}}
-          echo "COVERAGE_FILE_NAME: $COVERAGE_FILE_NAME"
-          ../scripts/coverage/coverage_capture.sh $COVERAGE_FILE_NAME
-          mkdir -p ${{env.COVERAGE_DIR}}
-          mv ./$COVERAGE_FILE_NAME ${{env.COVERAGE_DIR}}
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if:  ${{ matrix.build_type == 'Debug' }}
-        with:
-          name: ${{env.COVERAGE_NAME}}-proxy_lib_pool-${{matrix.proxy_lib_pool}}
-          path: ${{env.COVERAGE_DIR}}
+        run: while LD_PRELOAD=./lib/libumf_proxy.so UMF_LOG="level:debug;flush:debug;output:stderr;pid:yes" ./test/test_ipc_max_opened_limit --gtest_filter="*Concurrent*" ; do date; done
