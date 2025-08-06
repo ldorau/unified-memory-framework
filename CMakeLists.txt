@@ -108,7 +108,7 @@ umf_option(UMF_USE_COVERAGE "Build with coverage enabled (Linux only)" OFF)
 # set UMF_PROXY_LIB_BASED_ON_POOL to one of: SCALABLE or JEMALLOC
 set(KNOWN_PROXY_LIB_POOLS SCALABLE JEMALLOC)
 set(UMF_PROXY_LIB_BASED_ON_POOL
-    SCALABLE
+    JEMALLOC
     CACHE STRING
           "A UMF pool the proxy library is based on (SCALABLE or JEMALLOC)")
 set_property(CACHE UMF_PROXY_LIB_BASED_ON_POOL
