@@ -359,7 +359,9 @@ static umf_result_t pool_register_slab(disjoint_pool_t *pool, slab_t *slab) {
         LOG_ERR("register failed because of out of memory!");
         res = UMF_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     } else if (ret == EEXIST) {
-        LOG_ERR("register failed because the address is already registered!");
+        LOG_ERR("register failed because the address is already registered! "
+                "(slab: %p, start: %p)",
+                (void *)slab, slab_addr);
         res = UMF_RESULT_ERROR_UNKNOWN;
     }
 
