@@ -1,11 +1,11 @@
 # Various non-standard tests, requiring e.g. very long runs or just not required to be run very often.
 name: Weekly
 
-# This job is run every Saturday at 01:00 UTC or on demand.
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '0 1 * * 6' # every Saturday at 01:00 UTC
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
 
 env:
   BUILD_DIR : "${{github.workspace}}/build"
