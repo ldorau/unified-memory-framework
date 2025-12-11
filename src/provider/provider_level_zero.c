@@ -530,8 +530,15 @@ static umf_result_t ze_memory_provider_alloc_helper(void *provider, size_t size,
             .stype = ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC,
             .pNext = NULL,
             .flags = 0};
+        LOG_DEBUG("-> zeMemAllocHost(context: %p, host_desc: %p, size: %lu, "
+                  "alignment: %lu)",
+                  ze_provider->context, &host_desc, size, alignment);
         ze_result = (*g_ze_ops.zeMemAllocHost)(ze_provider->context, &host_desc,
                                                size, alignment, resultPtr);
+        LOG_DEBUG("<- zeMemAllocHost(context: %p, host_desc: %p, size: %lu, "
+                  "alignment: %lu) = *resultPtr = %p",
+                  ze_provider->context, &host_desc, size, alignment,
+                  *resultPtr);
         break;
     }
     case UMF_MEMORY_TYPE_DEVICE: {
@@ -560,9 +567,17 @@ static umf_result_t ze_memory_provider_alloc_helper(void *provider, size_t size,
             lastNext = &memory_export_desc_copy.pNext;
         }
 
+        LOG_DEBUG("-> zeMemAllocDevice(context: %p, dev_desc: %p, size: %lu, "
+                  "alignment: %lu, device: %p)",
+                  ze_provider->context, &dev_desc, size, alignment,
+                  ze_provider->device);
         ze_result = (*g_ze_ops.zeMemAllocDevice)(
             ze_provider->context, &dev_desc, size, alignment,
             ze_provider->device, resultPtr);
+        LOG_DEBUG("<- zeMemAllocDevice(context: %p, dev_desc: %p, size: %lu, "
+                  "alignment: %lu, device: %p) = *resultPtr = %p",
+                  ze_provider->context, &dev_desc, size, alignment,
+                  ze_provider->device, *resultPtr);
         break;
     }
     case UMF_MEMORY_TYPE_SHARED: {
@@ -577,9 +592,18 @@ static umf_result_t ze_memory_provider_alloc_helper(void *provider, size_t size,
                          : NULL,
             .flags = 0,
             .ordinal = ze_provider->device_ordinal};
+        LOG_DEBUG("-> zeMemAllocShared(context: %p, dev_desc: %p, host_desc: "
+                  "%p, size: %lu, alignment: %lu, device: %p)",
+                  ze_provider->context, &dev_desc, &host_desc, size, alignment,
+                  ze_provider->device);
         ze_result = (*g_ze_ops.zeMemAllocShared)(
             ze_provider->context, &dev_desc, &host_desc, size, alignment,
             ze_provider->device, resultPtr);
+        LOG_DEBUG(
+            "<- zeMemAllocShared(context: %p, dev_desc: %p, host_desc: %p, "
+            "size: %lu, alignment: %lu, device: %p) = *resultPtr = %p",
+            ze_provider->context, &dev_desc, &host_desc, size, alignment,
+            ze_provider->device, *resultPtr);
         break;
     }
     default:
@@ -599,6 +623,10 @@ static umf_result_t ze_memory_provider_alloc_helper(void *provider, size_t size,
 
     utils_read_lock(&ze_provider->resident_device_rwlock);
     for (uint32_t i = 0; i < ze_provider->resident_device_count; i++) {
+        LOG_DEBUG("-> zeContextMakeMemoryResident(context: %p, device: %p, "
+                  "size: %lu, *resultPtr: %p)",
+                  ze_provider->context, ze_provider->resident_device_handles[i],
+                  size, *resultPtr);
         ze_result = (*g_ze_ops.zeContextMakeMemoryResident)(
             ze_provider->context, ze_provider->resident_device_handles[i],
             *resultPtr, size);
