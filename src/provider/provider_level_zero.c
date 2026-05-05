@@ -490,6 +490,8 @@ static umf_result_t ze_memory_provider_free_helper(void *provider, void *ptr,
     ze_memory_provider_t *ze_provider = provider;
     umf_result_t ret;
     if (ze_provider->freePolicyFlags == 0) {
+        LOG_DEBUG("ze_memory_provider_free(): zeMemFree(%p of size %lu)", ptr,
+                  bytes);
         ret = ze2umf_result(g_ze_ops.zeMemFree(ze_provider->context, ptr));
     } else {
         ze_memory_free_ext_desc_t desc = {
@@ -497,6 +499,8 @@ static umf_result_t ze_memory_provider_free_helper(void *provider, void *ptr,
             .pNext = NULL,
             .freePolicy = ze_provider->freePolicyFlags};
 
+        LOG_DEBUG("ze_memory_provider_free(): zeMemFreeExt(%p of size %lu)",
+                  ptr, bytes);
         ret = ze2umf_result(
             g_ze_ops.zeMemFreeExt(ze_provider->context, &desc, ptr));
     }
