@@ -766,6 +766,12 @@ static umf_result_t ze_memory_provider_alloc_helper(void *provider, size_t size,
 
     utils_read_lock(&ze_provider->resident_device_rwlock);
     for (uint32_t i = 0; i < ze_provider->resident_device_count; i++) {
+        LOG_DEBUG("Calling zeContextMakeMemoryResident(ctx=%p, device=%p, "
+                  "ptr=%p, size=%lu)",
+                  (void *)ze_provider->context,
+                  (void *)ze_provider->resident_device_handles[i], *resultPtr,
+                  size);
+
         ze_result = g_ze_ops.zeContextMakeMemoryResident(
             ze_provider->context, ze_provider->resident_device_handles[i],
             *resultPtr, size);
@@ -1323,10 +1329,22 @@ static int ze_memory_provider_resident_device_change_helper(uintptr_t key,
 
     ze_result_t result;
     if (change_data->is_adding) {
+        LOG_DEBUG("Calling zeContextMakeMemoryResident(ctx=%p, device=%p, "
+                  "ptr=%p, size=%lu)",
+                  (void *)change_data->source_memory_provider->context,
+                  (void *)change_data->peer_device, info->props.base,
+                  info->props.base_size);
+
         result = g_ze_ops.zeContextMakeMemoryResident(
             change_data->source_memory_provider->context,
             change_data->peer_device, info->props.base, info->props.base_size);
     } else {
+        LOG_DEBUG("Calling zeContextEvictMemory(ctx=%p, device=%p, ptr=%p, "
+                  "size=%lu)",
+                  (void *)change_data->source_memory_provider->context,
+                  (void *)change_data->peer_device, info->props.base,
+                  info->props.base_size);
+
         result = g_ze_ops.zeContextEvictMemory(
             change_data->source_memory_provider->context,
             change_data->peer_device, info->props.base, info->props.base_size);
